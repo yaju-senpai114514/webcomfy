@@ -2,6 +2,9 @@ const $ = (id) => document.getElementById(id);
 let OPTIONS = {};
 let CONFIGS = [];      // config metadata list [{id,name,created,modified}]
 let SELECTED = null;   // {id, name} of the active config
+let SERVERS = [];      // ComfyUI server registry [{id,name,base_url,token,enabled}]
+let GEN_SERVER = null; // server id targeted by interactive 생성
+let LOCAL = {};        // 로컬 저장소 모델 목록 (서버에 없으면 생성 시 자동 전송됨)
 
 // --- persisted UI view-state (localStorage) -------------------------------
 const LS = {
@@ -40,6 +43,31 @@ function fillSelect(el, items, value) {
   }
   if (value !== undefined && value !== null) {
     if (![...el.options].some(o => o.value === value)) {
+      const o = document.createElement("option");
+      o.value = value; o.textContent = value + " (미설치?)";
+      el.appendChild(o);
+    }
+    el.value = value;
+  }
+}
+
+// 모델류 드롭다운: 서버 설치본 + 로컬 저장소 전용본(선택 시 생성 직전 자동 전송)을 합쳐 채운다.
+function fillModelSelect(el, key, value) {
+  const server = OPTIONS[key] || [];
+  const localOnly = (LOCAL[key] || []).filter((n) => !server.includes(n));
+  el.innerHTML = "";
+  for (const n of server) {
+    const o = document.createElement("option");
+    o.value = n; o.textContent = n;
+    el.appendChild(o);
+  }
+  for (const n of localOnly) {
+    const o = document.createElement("option");
+    o.value = n; o.textContent = n + " (로컬→자동전송)";
+    el.appendChild(o);
+  }
+  if (value !== undefined && value !== null) {
+    if (![...el.options].some((o) => o.value === value)) {
       const o = document.createElement("option");
       o.value = value; o.textContent = value + " (미설치?)";
       el.appendChild(o);
@@ -337,7 +365,7 @@ function loraRow(lora) {
   const row = document.createElement("div");
   row.className = "row";
   const name = document.createElement("select");
-  name.className = "lname"; fillSelect(name, OPTIONS.loras || [], lora.name);
+  name.className = "lname"; fillModelSelect(name, "loras", lora.name);
   const str = document.createElement("input");
   str.className = "lstr"; str.type = "number"; str.step = "0.05"; str.value = lora.strength ?? 1;
   const mode = document.createElement("select");
@@ -363,9 +391,9 @@ function loadDefaults(d) {
   for (const b of p.blocks || []) $("blocks").appendChild(blockRow(b));
   $("negative").value = d.negative || "";
 
-  fillSelect($("unet_name"), OPTIONS.unets || [], d.models.unet_name);
-  fillSelect($("clip_name"), OPTIONS.clips || [], d.models.clip_name);
-  fillSelect($("vae_name"), OPTIONS.vaes || [], d.models.vae_name);
+  fillModelSelect($("unet_name"), "unets", d.models.unet_name);
+  fillModelSelect($("clip_name"), "clips", d.models.clip_name);
+  fillModelSelect($("vae_name"), "vaes", d.models.vae_name);
   $("width").value = d.size.width; $("height").value = d.size.height; $("batch_size").value = d.size.batch_size;
 
   $("loraRows").innerHTML = "";
@@ -376,7 +404,7 @@ function loadDefaults(d) {
   fillSelect($("s1_sampler_name"), OPTIONS.samplers || [], d.stage1.sampler_name);
   fillSelect($("s1_scheduler"), OPTIONS.schedulers || [], d.stage1.scheduler);
 
-  fillSelect($("up_model_name"), OPTIONS.upscale_models || [], d.upscale.model_name);
+  fillModelSelect($("up_model_name"), "upscale_models", d.upscale.model_name);
   $("up_scale_by").value = d.upscale.scale_by;
 
   $("s2_noise_seed").value = d.stage2.noise_seed; $("s2_steps").value = d.stage2.steps;
@@ -477,6 +505,21 @@ function setImg(frameId, sizeId, blob) {
   const frame = $(frameId); frame.innerHTML = ""; frame.appendChild(img);
 }
 
+function setImgEl(frameEl, blob) {
+  const img = new Image();
+  img.src = URL.createObjectURL(blob);
+  frameEl.innerHTML = ""; frameEl.appendChild(img);
+}
+
+// 투명 프로비저닝(로컬 저장소 → 서버 모델 자동 전송) 상태 문구
+function provisionText(ev) {
+  const pct = ev.total ? ` ${Math.round((ev.bytes_done || 0) / ev.total * 100)}%` : "";
+  const srv = ev.server ? ` → ${ev.server}` : "";
+  if (ev.state === "uploading") return `모델 자동 전송 중${srv}: ${ev.name}${pct}`;
+  if (ev.state === "done") return `모델 전송 완료${srv}: ${ev.name}`;
+  return `모델 전송 실패${srv}: ${ev.name} — ${ev.error || ""}`;
+}
+
 function showResolved(positive, loras, masterSeed) {
   const el = $("resolved");
   const lr = (loras && loras.length) ? loras.join(", ") : "(없음)";
@@ -504,6 +547,7 @@ function generate() {
   ws.onopen = () => {
     const ms = $("repro_seed").value.trim();
     if (ms) cfg.master_seed = ms;  // 빈칸이면 서버가 랜덤 마스터 시드 선택
+    if (GEN_SERVER) cfg.server_id = GEN_SERVER;  // 헤더에서 고른 생성 대상 서버
     ws.send(JSON.stringify(cfg));
   };
   ws.onmessage = (e) => {
@@ -523,6 +567,11 @@ function generate() {
     const ev = JSON.parse(e.data);
     switch (ev.type) {
       case "queued": setStatus(`큐 등록됨 (prompt ${ev.prompt_id.slice(0,8)})`, false); break;
+      case "provision":
+        setStatus(provisionText(ev), ev.state === "failed");
+        if (ev.state === "uploading" && ev.total) $("barFill").style.width = `${Math.round(ev.bytes_done / ev.total * 100)}%`;
+        if (ev.state === "done") $("barFill").style.width = "0%";
+        break;
       case "resolved": showResolved(ev.positive, ev.loras, ev.master_seed); break;
       case "node": setStatus(`실행 중: ${ev.node}`, false); break;
       case "progress":
@@ -543,11 +592,173 @@ function generate() {
 function finish() { $("genBtn").disabled = false; $("previewCard").classList.add("hidden"); }
 function setStatus(t, err) { const s = $("status"); s.textContent = t; s.className = "status" + (err ? " err" : ""); }
 
+// --- ComfyUI server registry (multi-server orchestration) ------------------
+async function loadServers() {
+  const data = await (await fetch("/api/servers")).json();
+  SERVERS = data.servers || [];
+  const enabled = SERVERS.filter((s) => s.enabled);
+  const saved = LS.get("genServer", null);
+  GEN_SERVER = (saved && enabled.some((s) => s.id === saved))
+    ? saved
+    : (data.default || (enabled[0] ? enabled[0].id : null));
+  renderServerSel();
+  renderServerPanel();
+  renderAfkServers();
+}
+
+function renderServerSel() {
+  const sel = $("serverSel");
+  sel.innerHTML = "";
+  for (const s of SERVERS.filter((s) => s.enabled)) {
+    const o = document.createElement("option");
+    o.value = s.id; o.textContent = s.name;
+    sel.appendChild(o);
+  }
+  if (GEN_SERVER) sel.value = GEN_SERVER;
+}
+
+// Reload dropdown options from the currently-selected generation server,
+// keeping the form's values (re-fills selects; unknown values get "(미설치?)").
+async function reloadOptions() {
+  const q = GEN_SERVER ? "?server_id=" + encodeURIComponent(GEN_SERVER) : "";
+  const data = await (await fetch("/api/options" + q)).json();
+  OPTIONS = data.options || {};
+  LOCAL = data.local || {};
+  $("baseUrl").textContent = "→ " + (data.base_url || "");
+  if (OPTIONS.error) setStatus("ComfyUI 연결 실패: " + OPTIONS.error, true);
+  return data;
+}
+
+function srvRow(s) {
+  const row = document.createElement("div");
+  row.className = "srv-row" + (s.enabled ? "" : " off");
+  const dot = document.createElement("span");
+  dot.className = "dot unknown"; dot.dataset.dot = s.id; dot.textContent = "●";
+  const en = document.createElement("input");
+  en.type = "checkbox"; en.checked = s.enabled; en.title = "활성/비활성";
+  en.addEventListener("change", async () => {
+    await fetch("/api/servers/" + s.id, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: en.checked }) });
+    loadServers();
+  });
+  const nm = document.createElement("b"); nm.className = "srv-name"; nm.textContent = s.name;
+  const mapi = document.createElement("span");
+  mapi.className = "srv-mapi hidden"; mapi.dataset.mapi = s.id; mapi.textContent = "M";
+  mapi.title = "모델 관리 API 사용 가능";
+  const url = document.createElement("span"); url.className = "srv-url"; url.textContent = s.base_url;
+  const edit = document.createElement("button");
+  edit.className = "sm"; edit.textContent = "✎"; edit.title = "이름/URL/토큰 수정";
+  edit.addEventListener("click", () => srvEdit(s));
+  const rm = document.createElement("button");
+  rm.className = "x"; rm.textContent = "✕"; rm.title = "서버 삭제";
+  rm.addEventListener("click", () => srvDel(s));
+  row.append(dot, en, nm, mapi, url, edit, rm);
+  return row;
+}
+
+function renderServerPanel() {
+  const box = $("srvList"); box.innerHTML = "";
+  for (const s of SERVERS) box.appendChild(srvRow(s));
+  if (!SERVERS.length) box.innerHTML = '<span class="hint">등록된 서버 없음 — + 서버 추가</span>';
+  for (const s of SERVERS) checkHealth(s.id);
+}
+
+async function checkHealth(id) {
+  const dot = document.querySelector(`[data-dot="${id}"]`);
+  const mapi = document.querySelector(`[data-mapi="${id}"]`);
+  if (!dot) return;
+  dot.className = "dot unknown"; dot.title = "확인 중...";
+  try {
+    const h = await (await fetch(`/api/servers/${id}/health`)).json();
+    dot.className = "dot " + (h.ok ? "ok" : "bad");
+    dot.title = h.ok
+      ? `응답 OK · 큐 실행 ${h.queue_running} / 대기 ${h.queue_pending}` + (h.models_api ? " · 모델 API OK" : " · 모델 API 없음")
+      : "연결 실패: " + (h.error || "");
+    if (mapi) mapi.classList.toggle("hidden", !h.models_api);
+  } catch {
+    dot.className = "dot bad"; dot.title = "헬스체크 실패";
+  }
+}
+
+async function srvAdd() {
+  const name = prompt("서버 이름", "gpu-" + (SERVERS.length + 1)); if (!name) return;
+  const base_url = prompt("ComfyUI 주소 (http://host:port)", "http://"); if (!base_url) return;
+  const token = prompt("모델 관리 API 토큰 (WEBCOMFY_MODELS_TOKEN, 없으면 빈칸)", "") ?? "";
+  const r = await fetch("/api/servers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, base_url, token }) });
+  if (!r.ok) { setStatus("서버 추가 실패", true); return; }
+  await loadServers();
+  setStatus(`서버 '${name}' 추가됨`, false);
+}
+
+async function srvEdit(s) {
+  const name = prompt("서버 이름", s.name); if (name === null) return;
+  const base_url = prompt("ComfyUI 주소", s.base_url); if (base_url === null) return;
+  const token = prompt("모델 관리 API 토큰 (빈칸=없음)", s.token || ""); if (token === null) return;
+  const r = await fetch("/api/servers/" + s.id, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, base_url, token }) });
+  if (!r.ok) { setStatus("서버 수정 실패", true); return; }
+  await loadServers();
+  reloadOptions();
+}
+
+async function srvDel(s) {
+  if (!confirm(`서버 '${s.name}' 삭제할까요? (파일은 건드리지 않음)`)) return;
+  await fetch("/api/servers/" + s.id, { method: "DELETE" });
+  await loadServers();
+}
+
+// AFK 분산 대상 체크박스 (기본: 활성 서버 전부)
+function renderAfkServers() {
+  const box = $("afkServers"); box.innerHTML = "";
+  const saved = LS.get("afkServers", null);  // 저장된 선택(id 배열), null = 전부
+  for (const s of SERVERS.filter((s) => s.enabled)) {
+    const lbl = document.createElement("label"); lbl.className = "inline afk-srv";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.value = s.id;
+    cb.checked = !saved || saved.includes(s.id);
+    cb.addEventListener("change", () => LS.set("afkServers", afkSelectedIds()));
+    lbl.append(cb, document.createTextNode(" " + s.name));
+    box.appendChild(lbl);
+  }
+  if (!box.children.length) box.innerHTML = '<span class="hint">활성 서버 없음</span>';
+}
+function afkSelectedIds() {
+  return [...$("afkServers").querySelectorAll("input:checked")].map((c) => c.value);
+}
+
 // --- AFK background loop + live stream -------------------------------------
 let afkTimer = null;
 let afkWs = null;
 let afkRunning = false;
 function setAfk(text, err) { const s = $("afkStatus"); s.textContent = text; s.className = "status" + (err ? " err" : ""); }
+
+// Per-server live cards: each AFK worker renders its own progress/frames so
+// several servers generating at once don't fight over the shared 대화형 cards.
+const AFK_CARDS = {};  // server_id → {root, stat, fill, resolved, baseF, finalF}
+function afkCard(id, name) {
+  if (AFK_CARDS[id]) return AFK_CARDS[id];
+  const root = document.createElement("div");
+  root.className = "afk-card";
+  root.innerHTML =
+    '<h3><span class="acname"></span><span class="acstat"></span></h3>' +
+    '<div class="bar mini"><div class="fill"></div></div>' +
+    '<div class="resolved acres"></div>' +
+    '<div class="ac-frames"><div class="frame"><span class="empty">—</span></div>' +
+    '<div class="frame"><span class="empty">—</span></div></div>';
+  root.querySelector(".acname").textContent = name || id;
+  $("afkCards").appendChild(root);
+  const frames = root.querySelectorAll(".ac-frames .frame");
+  AFK_CARDS[id] = {
+    root,
+    stat: root.querySelector(".acstat"),
+    fill: root.querySelector(".fill"),
+    resolved: root.querySelector(".acres"),
+    baseF: frames[0], finalF: frames[1],
+  };
+  return AFK_CARDS[id];
+}
+function clearAfkCards() {
+  $("afkCards").innerHTML = "";
+  for (const k of Object.keys(AFK_CARDS)) delete AFK_CARDS[k];
+}
 
 // Apply a status object (from polling or from a ws "afk" event) to the UI.
 function applyAfkStatus(st) {
@@ -558,9 +769,22 @@ function applyAfkStatus(st) {
   const hdr = $("afkBtn");  // header shortcut mirrors the loop state
   hdr.textContent = st.running ? "■ AFK 정지" : "AFK ▶";
   hdr.classList.toggle("running", !!st.running);
+
+  // Per-server worker badges (multi-server fan-out).
+  const workers = st.workers || [];
+  for (const w of workers) {
+    const c = afkCard(w.id, w.name);
+    c.stat.textContent = `${w.count}장` + (w.running ? "" : " · 정지") + (w.last_error ? " · ⚠" : "");
+    c.stat.title = w.last_error || "";
+    c.root.classList.toggle("stopped", !w.running);
+    c.root.classList.toggle("errored", !!w.last_error);
+  }
+  const alive = workers.filter((w) => w.running).length;
+  const srv = workers.length > 1 ? ` · 서버 ${alive}/${workers.length}` : "";
+
   const tgt = st.target ? ` / ${st.target}` : "";
   if (st.running) {
-    setAfk(`AFK 동작 중 · ${st.count}${tgt}장 저장${st.last_error ? " · 최근 에러: " + st.last_error : ""}`, !!st.last_error);
+    setAfk(`AFK 동작 중 · ${st.count}${tgt}장 저장${srv}${st.last_error ? " · 최근 에러: " + st.last_error : ""}`, !!st.last_error);
     openAfkStream();
     if (!afkTimer) afkTimer = setInterval(afkPoll, 3000);  // 백업 폴링
   } else {
@@ -586,18 +810,46 @@ function openAfkStream() {
   afkWs.onmessage = (e) => {
     if (typeof e.data !== "string") {
       if (!pending) return;
-      if (pending.type === "preview") { $("previewCard").classList.remove("hidden"); setImg("previewFrame", null, e.data); }
-      else if (pending.label === "intermediate") setImg("baseFrame", "baseSize", e.data);
-      else if (pending.label === "final") setImg("finalFrame", "finalSize", e.data);
+      const card = pending.server_id ? afkCard(pending.server_id, pending.server) : null;
+      if (pending.type === "preview") {
+        $("previewCard").classList.remove("hidden"); setImg("previewFrame", null, e.data);
+      } else if (pending.label === "intermediate") {
+        if (card) setImgEl(card.baseF, e.data);
+        setImg("baseFrame", "baseSize", e.data);  // 공용 카드(v2 플로팅 미리보기)도 갱신
+      } else if (pending.label === "final") {
+        if (card) setImgEl(card.finalF, e.data);
+        setImg("finalFrame", "finalSize", e.data);
+      }
       pending = null; return;
     }
     const ev = JSON.parse(e.data);
+    const card = ev.server_id ? afkCard(ev.server_id, ev.server) : null;
     switch (ev.type) {
-      case "resolved": showResolved(ev.positive, ev.loras, ev.master_seed); break;
-      case "node": setStatus("AFK 실행 중: " + ev.node, false); break;
-      case "progress": if (ev.max) $("barFill").style.width = `${Math.round(ev.value / ev.max * 100)}%`; break;
+      case "provision":
+        setStatus(provisionText(ev), ev.state === "failed");
+        if (card) {
+          card.stat.textContent = ev.state === "uploading"
+            ? `모델 전송 ${ev.total ? Math.round((ev.bytes_done || 0) / ev.total * 100) + "%" : ""}`
+            : (ev.state === "done" ? "모델 전송 완료" : "모델 전송 실패");
+          if (ev.state === "uploading" && ev.total) card.fill.style.width = `${Math.round(ev.bytes_done / ev.total * 100)}%`;
+        }
+        break;
+      case "resolved":
+        showResolved(ev.positive, ev.loras, ev.master_seed);
+        if (card) card.resolved.textContent = ev.positive;
+        break;
+      case "node":
+        setStatus(`AFK${ev.server ? "[" + ev.server + "]" : ""} 실행 중: ${ev.node}`, false);
+        break;
+      case "progress":
+        if (ev.max) {
+          const pct = `${Math.round(ev.value / ev.max * 100)}%`;
+          $("barFill").style.width = pct;
+          if (card) card.fill.style.width = pct;
+        }
+        break;
       case "image": case "preview": pending = ev; break;
-      case "saved": if (ev.path) setStatus("AFK 저장: " + ev.path, false); break;
+      case "saved": if (ev.path) setStatus(`AFK${ev.server ? "[" + ev.server + "]" : ""} 저장: ${ev.path}`, false); break;
       case "afk": applyAfkStatus(ev); break;
     }
   };
@@ -607,12 +859,15 @@ function openAfkStream() {
 function closeAfkStream() { if (afkWs) { try { afkWs.close(); } catch {} afkWs = null; } }
 
 async function afkStart() {
+  const server_ids = afkSelectedIds();
+  if (!server_ids.length) { setAfk("시작 실패: AFK 분산 서버를 하나 이상 체크하세요", true); return; }
   setAfk("AFK 시작 중...", false);
   if (SELECTED) saveCurrentConfig();  // AFK 시작 시 현재 구성 자동저장(→ 린터 체크까지 트리거)
-  const r = await fetch("/api/afk/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(gatherConfig()) });
+  const r = await fetch("/api/afk/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ config: gatherConfig(), server_ids }) });
   if (!r.ok) { const e = await r.json().catch(() => ({})); setAfk("시작 실패: " + (e.error || r.status), true); return; }
   $("previewCard").classList.add("hidden");
   $("barFill").style.width = "0%";
+  clearAfkCards();
   openAfkStream();
   afkPoll();
 }
@@ -728,6 +983,14 @@ $("cfgRename").addEventListener("click", cfgRename);
 $("cfgDel").addEventListener("click", cfgDel);
 
 $("genBtn").addEventListener("click", generate);
+$("serverSel").addEventListener("change", async () => {
+  GEN_SERVER = $("serverSel").value || null;
+  LS.set("genServer", GEN_SERVER);
+  await reloadOptions();
+  loadDefaults(gatherConfig());  // 새 서버 옵션으로 드롭다운 재구성(폼 값 유지)
+});
+$("srvAdd").addEventListener("click", srvAdd);
+$("srvRefresh").addEventListener("click", () => { for (const s of SERVERS) checkHealth(s.id); });
 $("addBlock").addEventListener("click", () => $("blocks").appendChild(blockRow({ input: "", items: [], children: [] })));
 $("analyzeBtn").addEventListener("click", analyzeConfig);
 $("addLora").addEventListener("click", () => $("loraRows").appendChild(loraRow({ mode: "conditional", strength: 1, trigger: "", name: (OPTIONS.loras||[])[0] })));
@@ -763,10 +1026,8 @@ persistSize($("negative"), "size:negative");
 $("cfgSort").value = LS.get("cfgSort", "modified");
 
 (async function init() {
-  const data = await (await fetch("/api/options")).json();
-  OPTIONS = data.options || {};
-  $("baseUrl").textContent = "→ " + data.base_url;
-  if (OPTIONS.error) { setStatus("ComfyUI 연결 실패: " + OPTIONS.error, true); }
-  await loadConfigs();  // fills the form from the selected config (needs OPTIONS first)
+  await loadServers();     // registry first — options come from the selected server
+  await reloadOptions();
+  await loadConfigs();     // fills the form from the selected config (needs OPTIONS first)
   afkPoll();  // reflect any AFK loop already running on the server (opens live stream)
 })();

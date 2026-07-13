@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>comfy-web · 모델 관리</title>
+<link rel="stylesheet" href="/style.css" />
+<link rel="stylesheet" href="/models.css" />
+<script src="/models.js" defer></script>
+</head>
+<body>
+<header>
+  <h1>모델 관리</h1>
+  <a class="hdr-link" href="/">← 생성 UI</a>
+  <div class="spacer"></div>
+  <label class="hdr-lbl">서버</label>
+  <select id="srcSel" class="srv-sel"></select>
+  <label class="hdr-lbl">비교/복사 대상</label>
+  <select id="dstSel" class="srv-sel"><option value="">(없음)</option></select>
+  <button id="refreshBtn" class="sm">새로고침</button>
+</header>
+
+<div class="m-wrap">
+  <!-- ============ categories sidebar ============ -->
+  <aside class="m-side">
+    <div class="m-cats" id="catList"></div>
+    <div class="hint">
+      카테고리는 ComfyUI <code>folder_paths</code>에서 동적으로 가져온다.
+      비어 있는 카테고리는 흐리게 표시.
+    </div>
+  </aside>
+
+  <!-- ============ file table + upload + jobs ============ -->
+  <main class="m-main">
+    <section class="m-upload panel-like">
+      <h2 id="upTitle">업로드</h2>
+      <div class="up-row">
+        <input type="file" id="upFile" />
+        <input type="text" id="upName" placeholder="저장 이름 (서브폴더 허용: styles/foo.safetensors)" />
+        <label class="inline"><input type="checkbox" id="upReplace" /> 덮어쓰기</label>
+        <button id="upBtn" class="primary sm">업로드 ▶</button>
+      </div>
+      <div class="bar mini hidden" id="upBar"><div class="fill" id="upFill"></div></div>
+      <div class="status" id="upStatus"></div>
+    </section>
+
+    <section class="m-files panel-like">
+      <h2 id="fileTitle">파일</h2>
+      <div class="m-toolbar">
+        <input type="text" id="fileFilter" placeholder="이름 필터..." />
+        <div class="spacer"></div>
+        <button id="copyMissingBtn" class="sm hidden">누락분 모두 복사 →</button>
+      </div>
+      <div class="m-table-wrap">
+        <table class="m-table">
+          <thead><tr>
+            <th class="c-name">이름</th><th class="c-size">크기</th><th class="c-mtime">수정</th>
+            <th class="c-sha">sha256</th><th class="c-diff hidden">대상</th><th class="c-act"></th>
+          </tr></thead>
+          <tbody id="fileRows"></tbody>
+        </table>
+      </div>
+      <div class="status" id="fileStatus"></div>
+    </section>
+
+    <section class="m-jobs panel-like hidden" id="jobsBox">
+      <h2>서버 간 복사 작업</h2>
+      <div id="jobRows"></div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

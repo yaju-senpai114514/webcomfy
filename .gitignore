@@ -18,3 +18,9 @@ output/
 
 # Config files
 configs/*.json
+
+# Server registry (holds per-server model-API tokens)
+servers.json
+
+# Local model repository (LoRA/체크포인트 파일)
+local_models/

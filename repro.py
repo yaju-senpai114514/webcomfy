@@ -15,6 +15,7 @@ from pathlib import Path
 import comfy
 import embed
 import pipeline
+import servers
 import storage
 from models import GenerationConfig
 from workflow import BuildInfo
@@ -37,7 +38,11 @@ def reproduce(webp_bytes: bytes) -> tuple[bytes, GenerationConfig, int, BuildInf
         if ev["type"] == "image":
             images[ev["label"]] = ev["data"]
 
-    comfy.run(workflow, labels, sink)
+    # CLI reproduction targets the default server (registry, else COMFY_BASE_URL).
+    servers.ensure_seeded()
+    entry = servers.default_server()
+    client = comfy.ComfyClient(entry.base_url if entry else comfy.COMFY_BASE_URL)
+    client.run(workflow, labels, sink)
     final = images.get("final")
     if final is None:
         raise RuntimeError("ComfyUI returned no final image")

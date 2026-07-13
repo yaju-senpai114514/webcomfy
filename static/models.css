@@ -1,0 +1,76 @@
+/* 모델 관리 페이지 전용 레이아웃 (style.css 공통 토큰 위에 얹음) */
+.hdr-lbl { color: var(--muted); font-size: 11px; margin: 0; }
+.m-wrap { display: grid; grid-template-columns: 230px 1fr; gap: 16px; padding: 16px; align-items: start; }
+.m-side { position: sticky; top: 60px; }
+
+.m-cats { display: flex; flex-direction: column; gap: 4px; }
+.m-cat {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px;
+  background: var(--panel2); cursor: pointer;
+}
+.m-cat:hover { border-color: var(--accent); }
+.m-cat.selected { border-color: var(--accent); background: rgba(108,140,255,0.14); }
+.m-cat.empty { opacity: .5; }
+.m-cat .mc-name { font-size: 13px; }
+.m-cat .mc-meta { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+.m-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.panel-like { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.panel-like h2 { margin: 0 0 8px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+/* upload */
+.up-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.up-row input[type=file] { width: auto; flex: 0 1 260px; }
+.up-row input[type=text] { flex: 1 1 240px; }
+.up-row .inline { width: auto; }
+.bar.mini { height: 4px; margin-top: 8px; }
+.bar.mini .fill { height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+
+/* file table */
+.m-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.m-toolbar input { max-width: 260px; }
+.m-toolbar .spacer { flex: 1; }
+.m-table-wrap { overflow-x: auto; }
+.m-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.m-table th {
+  text-align: left; color: var(--muted); font-weight: 500; font-size: 11px;
+  padding: 4px 8px; border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+.m-table td { padding: 5px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; }
+.m-table tr:hover td { background: rgba(255,255,255,0.025); }
+.c-name { word-break: break-all; font-family: ui-monospace, monospace; font-size: 12px; }
+.c-size, .c-mtime { white-space: nowrap; color: var(--muted); }
+.c-sha { font-family: ui-monospace, monospace; white-space: nowrap; }
+.c-sha.dim { color: var(--muted); }
+.c-act { white-space: nowrap; text-align: right; }
+.c-act .x { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 0 4px; }
+.c-act .x:hover { color: #f66; }
+.c-act .btnlike {
+  display: inline-block; text-decoration: none; color: var(--fg);
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 3px 8px; font-size: 12px; margin-right: 4px;
+}
+.c-act .btnlike:hover { border-color: var(--accent); }
+.c-act button { margin-right: 4px; }
+
+/* diff badges */
+.dbadge { font-size: 10px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.dbadge.dok { background: rgba(70,170,100,0.18); color: #7d7; }
+.dbadge.dbad { background: rgba(220,80,80,0.16); color: #f88; }
+.dbadge.dunk { background: rgba(200,170,60,0.16); color: #db7; }
+
+/* copy jobs */
+.job { margin-bottom: 10px; }
+.job-head { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; margin-bottom: 4px; }
+.job .jname { word-break: break-all; }
+.job .jstate { color: var(--muted); white-space: nowrap; }
+.job.error .jstate { color: #f77; }
+.job.done .jstate { color: var(--accent2); }
+
+@media (max-width: 860px) {
+  .m-wrap { grid-template-columns: 1fr; }
+  .m-side { position: static; }
+  .m-cats { flex-direction: row; flex-wrap: wrap; }
+  header { flex-wrap: wrap; }
+}
