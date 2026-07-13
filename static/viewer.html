@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>comfy-web · viewer</title>
+<link rel="stylesheet" href="/style.css" />
+<link rel="stylesheet" href="/viewer.css" />
+<script src="/viewer.js" defer></script>
+</head>
+<body class="viewer">
+<header>
+  <h1>comfy-web <span class="vtag">viewer</span></h1>
+  <span class="base">읽기 전용 · output / 구성 탐색</span>
+  <div class="spacer"></div>
+  <div class="tabs">
+    <button class="tab active" id="tabGallery" data-tab="gallery">갤러리</button>
+    <button class="tab" id="tabConfigs" data-tab="configs">구성</button>
+    <button class="tab" id="tabLive" data-tab="live">라이브</button>
+  </div>
+  <button class="sm" id="refreshBtn" title="다시 읽기">↻</button>
+</header>
+
+<!-- ===================== gallery ===================== -->
+<main class="viewer-main" id="viewGallery">
+  <aside class="side">
+    <div class="side-head" id="sideHeadGallery" title="접기/펼치기">
+      <span class="side-label">폴더 <span id="folderRoot" class="muted"></span></span>
+      <button class="side-toggle"></button>
+    </div>
+    <div id="folderList" class="folder-list"></div>
+  </aside>
+  <section class="content">
+    <div id="galleryHead" class="content-head"></div>
+    <div id="thumbs" class="grid-thumbs"></div>
+  </section>
+</main>
+
+<!-- ===================== configs ===================== -->
+<main class="viewer-main hidden" id="viewConfigs">
+  <aside class="side">
+    <div class="side-head" id="sideHeadConfigs" title="접기/펼치기">
+      <span class="side-label">구성 <span id="cfgCount" class="muted"></span></span>
+      <button class="side-toggle"></button>
+    </div>
+    <div id="cfgList" class="cfg-list2"></div>
+  </aside>
+  <section class="content">
+    <div id="cfgDetail" class="ro-detail"></div>
+  </section>
+</main>
+
+<!-- ===================== live (AFK loop) ===================== -->
+<main class="live-main hidden" id="viewLive">
+  <div class="live-prog">
+    <div class="bar"><div id="barFill"></div></div>
+    <div class="status mt8" id="liveStatus">AFK 상태 확인 중…</div>
+    <div class="resolved mt8" id="resolved"></div>
+  </div>
+  <div class="live-cfg-head">현재 생성 구성</div>
+  <div id="liveConfig" class="ro-detail"></div>
+</main>
+
+<!-- floating preview, bottom-right (live tab only) -->
+<aside class="float-preview hidden" id="floatPreview">
+  <div class="fp-head">
+    <span class="fp-title">미리보기</span>
+    <button class="fp-toggle" id="fpToggle" title="접기/펼치기">▾</button>
+  </div>
+  <div class="fp-body">
+    <div class="fp-card">
+      <div class="fp-cap"><span>① base</span><span id="baseSize"></span></div>
+      <div class="frame" id="baseFrame"><span class="empty">—</span></div>
+    </div>
+    <div class="fp-card">
+      <div class="fp-cap"><span>② hires</span><span id="finalSize"></span></div>
+      <div class="frame" id="finalFrame"><span class="empty">—</span></div>
+    </div>
+    <div class="fp-card hidden" id="previewCard">
+      <div class="fp-cap"><span>라이브 프리뷰</span></div>
+      <div class="frame" id="previewFrame"></div>
+    </div>
+  </div>
+</aside>
+
+<!-- ===================== lightbox ===================== -->
+<div class="lightbox hidden" id="lightbox">
+  <div class="lb-inner" id="lbInner">
+    <div class="lb-imgwrap"><img id="lbImg" alt="" /></div>
+    <button class="lb-meta-toggle" id="lbMetaToggle">상세 정보 ▸</button>
+    <aside class="lb-meta" id="lbMeta"></aside>
+  </div>
+</div>
+</body>
+</html>

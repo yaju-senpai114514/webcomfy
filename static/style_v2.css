@@ -1,0 +1,89 @@
+/* ============================================================
+   comfy-web v2 — layout overrides on top of style.css
+   - always single column (no responsive controls|outputs split)
+   - top-level wildcard blocks spread left-to-right
+   - base/hires/preview as a small floating panel, bottom-right
+   Component styles (panels, blocks, tables, tree, issues) come
+   from style.css unchanged.
+   ============================================================ */
+
+header .vtag {
+  font-size:10px; color:var(--accent); border:1px solid var(--accent);
+  border-radius:4px; padding:0 4px; vertical-align:middle; letter-spacing:.04em;
+}
+
+/* ---- single-column flow ---- */
+.v2-main {
+  max-width:1180px; margin:0 auto; padding:16px;
+  display:flex; flex-direction:column; gap:14px;
+}
+
+/* progress just scrolls with the rest — the floating preview already keeps the
+   live image visible, so no need to pin this. */
+.prog-top {
+  background:var(--panel); border:1px solid var(--line); border-radius:8px;
+  padding:10px 14px;
+}
+.prog-top .prog-meta { margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+.prog-top .analyze-out:not(:empty) { margin-top:8px; }
+
+/* ---- top-level wildcard blocks: spread horizontally ---- */
+#blocks { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-start; }
+#blocks > .block {
+  flex:1 1 340px; min-width:300px; max-width:520px;
+  margin-bottom:0;            /* gap handles spacing in flex mode */
+}
+/* heads can hold many buttons; let them wrap at narrow card widths */
+#blocks > .block > .block-head { flex-wrap:wrap; }
+/* nested children stay vertical — they live inside .wc-children, not #blocks */
+
+/* ---- floating preview panel ---- */
+.float-preview {
+  position:fixed; right:14px; bottom:14px; width:248px; z-index:50;
+  background:var(--panel); border:1px solid var(--line); border-radius:10px;
+  box-shadow:0 10px 34px rgba(0,0,0,.55); overflow:hidden;
+}
+.fp-head {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:6px 10px; background:var(--panel2);
+  font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;
+}
+.fp-toggle {
+  background:transparent; border:none; color:var(--muted);
+  cursor:pointer; padding:0 4px; font-size:12px; line-height:1;
+}
+.fp-toggle:hover { color:var(--fg); }
+.fp-body {
+  padding:8px; display:flex; flex-direction:column; gap:8px;
+  max-height:74vh; overflow:auto;
+}
+.float-preview.collapsed .fp-body { display:none; }
+.fp-cap {
+  font-size:10px; color:var(--muted); margin-bottom:3px;
+  display:flex; justify-content:space-between; gap:6px;
+}
+.fp-card .frame {
+  background:#0c0d10; border-radius:6px; min-height:84px;
+  display:flex; align-items:center; justify-content:center; overflow:hidden;
+}
+.fp-card .frame img { max-width:100%; max-height:210px; display:block; cursor:zoom-in; }
+.fp-card .empty { color:#444b58; font-size:12px; }
+
+/* ---- click-to-zoom lightbox ---- */
+.lightbox {
+  position:fixed; inset:0; z-index:100; background:rgba(0,0,0,.86);
+  display:flex; align-items:center; justify-content:center; cursor:zoom-out;
+}
+/* style.css's .hidden{display:none} loads first, so without this the later
+   .lightbox{display:flex} would win (equal specificity) and the overlay would
+   cover the page even when hidden. */
+.lightbox.hidden { display:none; }
+.lightbox img { max-width:94vw; max-height:94vh; box-shadow:0 0 40px rgba(0,0,0,.6); }
+
+/* ---- mobile ---- */
+@media (max-width:560px) {
+  .v2-main { padding:10px; }
+  #blocks > .block { flex-basis:100%; max-width:none; min-width:0; }
+  .float-preview { width:150px; right:8px; bottom:8px; }
+  .fp-card .frame img { max-height:140px; }
+}

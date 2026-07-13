@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>comfy-web</title>
+<link rel="stylesheet" href="/style.css" />
+<script src="/main.js" defer></script>
+</head>
+<body>
+<header>
+  <h1>comfy-web</h1>
+  <span class="base" id="baseUrl"></span>
+  <div class="spacer"></div>
+  <button id="saveBtn" class="sm">구성 저장</button>
+  <button id="genBtn" class="primary">생성 ▶</button>
+  <button id="afkBtn" class="sm afk-shortcut">AFK ▶</button>
+</header>
+
+<div class="wrap">
+  <!-- ===================== controls ===================== -->
+  <div class="col">
+    <details class="panel" open>
+      <summary>구성 (Config) 관리</summary>
+      <div class="panel-body">
+        <div class="cfg-toolbar">
+          <label class="cfg-sortlbl">정렬</label>
+          <select id="cfgSort">
+            <option value="modified">수정일순</option>
+            <option value="created">생성일순</option>
+            <option value="name">이름순</option>
+          </select>
+          <div class="spacer"></div>
+          <button class="sm" id="cfgNew">+ 새 구성</button>
+          <button class="sm" id="cfgDup">복제</button>
+          <button class="sm" id="cfgRename">이름변경</button>
+          <button class="sm" id="cfgDel">삭제</button>
+        </div>
+        <div id="cfgList" class="cfg-list"></div>
+        <div class="hint">행을 누르면 해당 구성을 폼에 불러옵니다. <b>구성 저장</b>(헤더)은 현재 폼을 선택된 구성에 덮어씁니다.</div>
+      </div>
+    </details>
+
+    <details class="panel" open>
+      <summary>프롬프트 (Positive · 와일드카드)</summary>
+      <div class="panel-body">
+        <div class="field"><label>Base prompt</label><textarea id="base"></textarea></div>
+        <div id="blocks"></div>
+        <div class="blocks-toolbar">
+          <button class="sm" id="addBlock">+ 와일드카드 블록</button>
+          <button class="sm" id="analyzeBtn" title="dead branch·치환 불가 토큰 정적 검사">⚠ 검증</button>
+        </div>
+        <div class="hint">
+          각 블록: <b>input</b> 토큰(콤마 구분)이 프롬프트에 있으면 consume되고, 첫 등장 위치에
+          <b>후보</b> 한 줄이 매 생성마다 가중 랜덤 삽입됨. 표에서 — 체크박스 = 활성/비활성(주석),
+          <b>가중치</b> 열(0 이상 실수, 0이면 선택 안 됨), 후보 텍스트가 <code>NOPROMPT</code>면 consume만 하고 삽입 안 함.
+          블록 아래 <b>+ 하위 블록</b>으로 이 블록이 치환된 뒤 이어서 굴려지는 <b>하위 블록(재귀 트리)</b>을 달 수 있음 —
+          예: <code>__hair__</code> 블록의 후보 <code>twintails, __len__</code>가 뽑히면, 하위 <code>__len__</code> 블록이 길이를 다시 굴림.
+          하위 블록도 다시 하위 블록을 가질 수 있음. <b>텍스트로</b> 토글하면 후보 목록을 <code>|n| 텍스트</code> 원문으로 일괄 편집.
+        </div>
+      </div>
+    </details>
+
+    <details class="panel" open>
+      <summary>프롬프트 (Negative)</summary>
+      <div class="panel-body">
+        <div class="field"><textarea id="negative"></textarea></div>
+      </div>
+    </details>
+
+    <details class="panel" open>
+      <summary>이미지 크기</summary>
+      <div class="panel-body">
+        <div class="grid3">
+          <div><label>Width</label><input id="width" type="number" step="8" /></div>
+          <div><label>Height</label><input id="height" type="number" step="8" /></div>
+          <div><label>Batch</label><input id="batch_size" type="number" min="1" /></div>
+        </div>
+        <button class="sm mt8" id="swapBtn">↕ 가로/세로 전환</button>
+      </div>
+    </details>
+
+    <details class="panel" open>
+      <summary>저장 / AFK</summary>
+      <div class="panel-body">
+        <label class="inline"><input id="save_enabled" type="checkbox" /> 대화형 생성도 webp로 저장</label>
+        <div class="grid2 mt8">
+          <div class="field"><label>저장 폴더</label><input id="save_dir" /></div>
+          <div class="field"><label>경로 템플릿</label><input id="save_template" /></div>
+          <div class="field"><label>webp 품질 (1–100)</label><input id="save_quality" type="number" min="1" max="100" /></div>
+          <div class="field"><label class="inline lbl-chk"><input id="save_lossless" type="checkbox" /> 무손실(lossless)</label></div>
+        </div>
+        <div class="hint">placeholder: <code>{date}</code> <code>{time}</code> <code>{datetime}</code> <code>{seed}</code> <code>{index}</code> <code>{cname}</code> <code>{ext}</code></div>
+        <div class="grid2 mt8">
+          <div class="field"><label>AFK 생성 개수 (0=무한)</label><input id="afk_count" type="number" min="0" /></div>
+          <div class="field afk-btns">
+            <button id="afkStart" class="sm">AFK 시작 ▶</button>
+            <button id="afkStop" class="sm" disabled>■ 정지</button>
+          </div>
+        </div>
+        <div class="status mt8" id="afkStatus">AFK 정지됨</div>
+        <div class="hint">AFK는 매 생성마다 와일드카드/시드를 다시 굴려 정지할 때까지(또는 지정 개수까지) 백그라운드에서 저장한다. 브라우저를 닫아도 서버에서 계속 동작.</div>
+      </div>
+    </details>
+
+    <details class="panel" open>
+      <summary>재현 (Reproduce)</summary>
+      <div class="panel-body">
+        <div class="field"><label>재현 master seed (빈칸=매번 랜덤)</label>
+          <input id="repro_seed" type="text" inputmode="numeric" placeholder="비워두면 매 생성마다 새 시드" /></div>
+        <div class="field"><label>webp에서 config·시드 복구</label>
+          <input id="repro_file" type="file" accept="image/webp,.webp" /></div>
+        <div class="hint">
+          저장된 webp에는 gz 압축된 config와 master seed가 RIFF 청크로 임베드된다.
+          위에 그 webp를 올리면 폼과 재현 시드를 복구한다. 같은 시드+config면 와일드카드·샘플러 시드까지 동일하게 재현된다.
+        </div>
+      </div>
+    </details>
+
+    <details class="panel" open>
+      <summary>모델</summary>
+      <div class="panel-body">
+        <div class="field"><label>UNET</label><select id="unet_name"></select></div>
+        <div class="grid2">
+          <div class="field"><label>CLIP</label><select id="clip_name"></select></div>
+          <div class="field"><label>VAE</label><select id="vae_name"></select></div>
+        </div>
+      </div>
+    </details>
+
+    <details class="panel" open>
+      <summary>LoRA</summary>
+      <div class="panel-body">
+        <div class="row lora-head">
+          <span>LoRA</span><span>강도</span><span>모드</span><span>트리거 토큰</span><span></span>
+        </div>
+        <div id="loraRows"></div>
+        <button class="sm" id="addLora">+ LoRA 추가</button>
+        <div class="hint">
+          <b>always</b> = 토큰 무관 상시 적용. <b>conditional</b> = 최종 프롬프트에 <b>트리거 토큰</b>(콤마 단위 정확 일치)이
+          있을 때만 적용. 트리거가 비어 있으면 conditional은 비활성.
+        </div>
+      </div>
+    </details>
+
+    <details class="panel" open>
+      <summary>1단계 샘플링 (KSampler)</summary>
+      <div class="panel-body">
+        <div class="grid2">
+          <div class="field"><label>Seed (-1=랜덤)</label><input id="s1_seed" type="number" /></div>
+          <div class="field"><label>Steps</label><input id="s1_steps" type="number" /></div>
+          <div class="field"><label>CFG</label><input id="s1_cfg" type="number" step="0.1" /></div>
+          <div class="field"><label>Denoise</label><input id="s1_denoise" type="number" step="0.05" /></div>
+          <div class="field"><label>Sampler</label><select id="s1_sampler_name"></select></div>
+          <div class="field"><label>Scheduler</label><select id="s1_scheduler"></select></div>
+        </div>
+      </div>
+    </details>
+
+    <details class="panel" open>
+      <summary>업스케일</summary>
+      <div class="panel-body">
+        <div class="grid2">
+          <div class="field"><label>Upscale model</label><select id="up_model_name"></select></div>
+          <div class="field"><label>Scale by (모델 4배 후)</label><input id="up_scale_by" type="number" step="0.05" /></div>
+        </div>
+        <div class="hint" id="upHint"></div>
+      </div>
+    </details>
+
+    <details class="panel" open>
+      <summary>2단계 샘플링 (KSampler Advanced · hires)</summary>
+      <div class="panel-body">
+        <div class="grid2">
+          <div class="field"><label>Noise seed (-1=랜덤)</label><input id="s2_noise_seed" type="number" /></div>
+          <div class="field"><label>Steps</label><input id="s2_steps" type="number" /></div>
+          <div class="field"><label>Start at step</label><input id="s2_start_at_step" type="number" /></div>
+          <div class="field"><label>End at step</label><input id="s2_end_at_step" type="number" /></div>
+          <div class="field"><label>CFG</label><input id="s2_cfg" type="number" step="0.1" /></div>
+          <div class="field"><label>Add noise</label>
+            <select id="s2_add_noise"><option>enable</option><option>disable</option></select></div>
+          <div class="field"><label>Sampler</label><select id="s2_sampler_name"></select></div>
+          <div class="field"><label>Scheduler</label><select id="s2_scheduler"></select></div>
+        </div>
+        <div class="hint" id="s2Hint"></div>
+      </div>
+    </details>
+
+    <details class="panel">
+      <summary>고급 (Model Sampling + DCW Patch)</summary>
+      <div class="panel-body">
+        <div class="grid2">
+          <div class="field"><label>Shift (AuraFlow)</label><input id="adv_shift" type="number" step="0.1" /></div>
+          <div class="field"><label>smc_preset</label><input id="adv_smc_preset" /></div>
+          <div class="field"><label>lambda_l</label><input id="adv_lambda_l" type="number" step="0.001" /></div>
+          <div class="field"><label>lambda_h</label><input id="adv_lambda_h" type="number" step="0.001" /></div>
+          <div class="field"><label>alpha_l</label><input id="adv_alpha_l" type="number" step="0.1" /></div>
+          <div class="field"><label>alpha_h</label><input id="adv_alpha_h" type="number" step="0.1" /></div>
+          <div class="field"><label>smc_lambda</label><input id="adv_smc_lambda" type="number" step="0.1" /></div>
+          <div class="field"><label>smc_k</label><input id="adv_smc_k" type="number" step="0.01" /></div>
+        </div>
+        <div class="grid2">
+          <label class="inline"><input id="adv_dcw_enabled" type="checkbox" /> dcw_enabled</label>
+          <label class="inline"><input id="adv_cwm_enabled" type="checkbox" /> cwm_enabled</label>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- ===================== outputs ===================== -->
+  <div class="col">
+    <fieldset>
+      <legend>진행 상황</legend>
+      <div class="bar"><div id="barFill"></div></div>
+      <div class="status mt8" id="status">대기 중</div>
+      <div class="resolved mt8" id="resolved"></div>
+      <div id="analyzeOut" class="analyze-out"></div>
+    </fieldset>
+    <div class="out">
+      <div class="imgcard">
+        <h3><span>① 중간 (base)</span><span id="baseSize"></span></h3>
+        <div class="frame" id="baseFrame"><span class="empty">—</span></div>
+      </div>
+      <div class="imgcard">
+        <h3><span>② 최종 (hires)</span><span id="finalSize"></span></h3>
+        <div class="frame" id="finalFrame"><span class="empty">—</span></div>
+      </div>
+    </div>
+    <div class="imgcard hidden" id="previewCard">
+      <h3>라이브 프리뷰</h3>
+      <div class="frame" id="previewFrame"></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

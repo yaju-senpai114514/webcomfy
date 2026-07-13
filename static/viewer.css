@@ -1,0 +1,147 @@
+/* ============================================================
+   comfy-web viewer — read-only gallery + config browser.
+   Builds on style.css (shared dark theme / vars).
+   ============================================================ */
+
+header .vtag {
+  font-size:10px; color:var(--accent2); border:1px solid var(--accent2);
+  border-radius:4px; padding:0 4px; vertical-align:middle; letter-spacing:.04em;
+}
+.btnlink { text-decoration:none; display:inline-flex; align-items:center; }
+.tabs { display:flex; gap:0; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+.tab { border:none; border-radius:0; background:var(--panel2); color:var(--muted); padding:5px 14px; font-size:12px; }
+.tab:hover { color:var(--fg); }
+.tab.active { background:var(--accent); color:#fff; }
+.muted { color:var(--muted); }
+.small { font-size:11px; }
+.pad { padding:8px; }
+
+/* layout: sidebar + content */
+.viewer-main { display:grid; grid-template-columns:240px 1fr; gap:14px; padding:14px; align-items:start; }
+/* style.css's .hidden loads first, so its display:none loses to .viewer-main's
+   display:grid at equal specificity — re-assert it for the hidden tab. */
+.viewer-main.hidden { display:none; }
+.side { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px; position:sticky; top:62px; max-height:calc(100vh - 78px); overflow:auto; }
+.side-head { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; cursor:pointer; user-select:none; }
+.side-head:hover { color:var(--fg); }
+.side-label { flex:1 1 auto; min-width:0; }
+.side-toggle { flex:none; background:transparent; border:none; color:inherit; cursor:pointer; padding:0 2px; font-size:11px; line-height:1; }
+.side-toggle::before { content:"◂"; }
+
+/* folded sidebar: PC → slim rail on the left, mobile → header-bar accordion */
+@media (min-width:761px) {
+  .viewer-main.side-folded { grid-template-columns:30px 1fr; }
+  .viewer-main.side-folded .side { padding:8px 4px; }
+  .viewer-main.side-folded .side-head { margin-bottom:0; justify-content:center; }
+  .viewer-main.side-folded .side-label,
+  .viewer-main.side-folded .folder-list,
+  .viewer-main.side-folded .cfg-list2 { display:none; }
+  .viewer-main.side-folded .side-toggle::before { content:"▸"; }
+}
+.content { min-width:0; }
+.content-head { font-size:12px; color:var(--muted); margin-bottom:10px; }
+
+/* folder list */
+.folder-list, .cfg-list2 { display:flex; flex-direction:column; gap:4px; }
+.folder, .cfg-item { border:1px solid var(--line); border-radius:6px; padding:6px 9px; cursor:pointer; background:var(--panel2); }
+.folder:hover, .cfg-item:hover { border-color:var(--accent); }
+.folder.selected, .cfg-item.selected { border-color:var(--accent); background:rgba(108,140,255,0.14); }
+.folder-name, .cfg-name { font-size:12px; color:var(--fg); word-break:break-all; }
+.folder-sub, .cfg-dates { font-size:10px; color:var(--muted); margin-top:2px; }
+
+/* thumbnail grid */
+.grid-thumbs { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px; }
+.thumb { background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; cursor:zoom-in; }
+.thumb:hover { border-color:var(--accent); }
+.thumb img { width:100%; aspect-ratio:1/1; object-fit:cover; display:block; background:#0c0d10; }
+.thumb-cap { display:flex; justify-content:space-between; gap:6px; padding:4px 7px; font-size:10px; color:var(--fg); }
+.thumb-cap span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* lightbox */
+/* overscroll-x: keep Chrome Android's horizontal-overscroll history swipe from
+   firing while swiping between images (iOS edge-back can't be blocked from web). */
+html, body { overscroll-behavior-x:none; }
+body.lb-open { overflow:hidden; }  /* no background scroll behind the overlay */
+.lightbox { position:fixed; inset:0; z-index:100; background:rgba(0,0,0,.88); display:flex; align-items:center; justify-content:center; }
+.lightbox.hidden { display:none; }
+.lb-inner { display:flex; gap:14px; max-width:96vw; max-height:94vh; overscroll-behavior:contain; }
+.lb-imgwrap { display:flex; align-items:center; justify-content:center; cursor:zoom-out; flex:1 1 auto; min-width:0; }
+/* pan-y: horizontal swipes are ours (image nav), vertical stays native scroll;
+   pinch-zoom keeps two-finger zoom working on the image. */
+.lb-imgwrap img { max-width:64vw; max-height:94vh; box-shadow:0 0 40px rgba(0,0,0,.6); touch-action:pan-y pinch-zoom; }
+.lb-meta-toggle { display:none; }  /* mobile-only, see media query */
+.lb-meta { width:340px; flex:none; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; overflow:auto; max-height:94vh; }
+.lb-title { font-size:13px; color:var(--fg); word-break:break-all; }
+.lb-row { display:flex; gap:8px; align-items:baseline; margin-top:10px; }
+.lb-sub, .lb-cfg > summary { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-top:12px; cursor:default; }
+.lb-cfg > summary { cursor:pointer; }
+.sel { user-select:all; }
+
+/* read-only config render */
+.ro-detail .ro-head { display:flex; flex-direction:column; gap:2px; margin-bottom:10px; }
+.ro-title { font-size:15px; color:var(--fg); }
+.ro-config { display:flex; flex-direction:column; gap:12px; }
+.ro-sec { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+.ro-sec > h3 { margin:0 0 8px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.ro-pre { white-space:pre-wrap; word-break:break-word; font-family:ui-monospace, monospace; font-size:12px; color:var(--fg); background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:7px 9px; line-height:1.5; }
+.ro-base .ro-k { font-size:10px; color:var(--muted); margin-bottom:3px; }
+.ro-kv { display:grid; grid-template-columns:max-content 1fr; gap:2px 12px; font-size:12px; margin-bottom:6px; }
+.ro-kv:last-child { margin-bottom:0; }
+.ro-k { color:var(--muted); }
+.ro-v { color:var(--fg); word-break:break-word; font-family:ui-monospace, monospace; font-size:11px; }
+
+/* block tree (read-only) */
+.ro-blocks { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+.ro-block { border:1px solid var(--line); border-radius:6px; background:var(--panel2); padding:7px 8px; }
+.ro-bhead { font-size:12px; margin-bottom:5px; }
+.ro-trig { font-family:ui-monospace, monospace; color:var(--accent); }
+.ro-items { display:flex; flex-direction:column; gap:2px; }
+.ro-irow { display:grid; grid-template-columns:16px 42px 1fr; gap:6px; align-items:start; font-size:11px; }
+.ro-en { color:var(--accent2); text-align:center; }
+.ro-irow.off .ro-en { color:var(--muted); }
+.ro-irow.off .ro-w, .ro-irow.off .ro-t { opacity:.45; text-decoration:line-through; }
+.ro-w { color:var(--muted); font-variant-numeric:tabular-nums; }
+.ro-t { font-family:ui-monospace, monospace; color:var(--fg); white-space:pre-wrap; word-break:break-word; }
+.ro-t.noprompt { color:var(--accent); font-style:italic; }
+.ro-children { margin:6px 0 0 8px; padding-left:12px; border-left:2px solid var(--tree); display:flex; flex-direction:column; gap:6px; }
+
+/* ---- live (AFK) tab ---- */
+.live-main { max-width:960px; margin:0 auto; padding:14px; display:flex; flex-direction:column; gap:12px; }
+/* .live-main loads after style.css, so display:flex would beat .hidden — re-assert */
+.live-main.hidden { display:none; }
+.live-prog { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+.live-cfg-head { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.lb-meta.hidden { display:none; }
+
+/* ---- floating preview (bottom-right, live tab) ---- */
+.float-preview { position:fixed; right:14px; bottom:14px; width:248px; z-index:50; background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:0 10px 34px rgba(0,0,0,.55); overflow:hidden; }
+.float-preview.hidden { display:none; }
+.fp-head { display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:var(--panel2); font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.fp-toggle { background:transparent; border:none; color:var(--muted); cursor:pointer; padding:0 4px; font-size:12px; line-height:1; }
+.fp-toggle:hover { color:var(--fg); }
+.fp-body { padding:8px; display:flex; flex-direction:column; gap:8px; max-height:74vh; overflow:auto; }
+.float-preview.collapsed .fp-body { display:none; }
+.fp-card .fp-cap { font-size:10px; color:var(--muted); margin-bottom:3px; display:flex; justify-content:space-between; gap:6px; }
+.fp-card .frame { background:#0c0d10; border-radius:6px; min-height:84px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.fp-card .frame img { max-width:100%; max-height:210px; display:block; cursor:zoom-in; }
+.fp-card .empty { color:#444b58; font-size:12px; }
+
+/* mobile */
+@media (max-width:760px) {
+  .viewer-main { grid-template-columns:1fr; }
+  .side { position:static; max-height:none; }
+  .side-toggle::before { content:"▾"; }
+  .viewer-main.side-folded .side-head { margin-bottom:0; }
+  .viewer-main.side-folded .folder-list,
+  .viewer-main.side-folded .cfg-list2 { display:none; }
+  .viewer-main.side-folded .side-toggle::before { content:"▸"; }
+  .lb-inner { flex-direction:column; max-height:94vh; overflow:auto; }
+  .lb-imgwrap img { max-width:92vw; max-height:60vh; }
+  .lb-meta { width:auto; }
+  /* foldable detail: toggle bar appears, panel collapses via .folded */
+  .lb-meta-toggle { display:block; flex:none; width:92vw; background:var(--panel2); border:1px solid var(--line); border-radius:8px; color:var(--muted); font-size:12px; padding:9px 12px; text-align:left; letter-spacing:.03em; }
+  .lb-meta-toggle.hidden { display:none; }  /* image-only lightbox (no metadata) */
+  .lb-meta.folded { display:none; }
+  .float-preview { width:150px; right:8px; bottom:8px; }
+  .fp-card .frame img { max-height:140px; }
+}
