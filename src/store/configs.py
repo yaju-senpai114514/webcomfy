@@ -15,11 +15,13 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from models import GenerationConfig
+from paths import ROOT_DIR
 
-CONFIGS_DIR = Path(__file__).resolve().parent / "configs"
+from gen.models import GenerationConfig
+
+CONFIGS_DIR = ROOT_DIR / "configs"
 STATE_FILE = CONFIGS_DIR / "_state.json"
-LEGACY_CONFIG = Path(__file__).resolve().parent / "config.json"
+LEGACY_CONFIG = ROOT_DIR / "config.json"
 
 
 class _Strict(BaseModel):

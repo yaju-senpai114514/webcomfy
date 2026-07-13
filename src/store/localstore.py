@@ -31,12 +31,12 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from modelapi import ModelAPIError
+from comfy.modelapi import ModelAPIError
+from paths import ROOT_DIR
 
 load_dotenv()
 
-BASE_DIR = Path(__file__).resolve().parent
-ROOT = Path(os.environ.get("LOCAL_MODELS_DIR", BASE_DIR / "local_models")).resolve()
+ROOT = Path(os.environ.get("LOCAL_MODELS_DIR", ROOT_DIR / "local_models")).resolve()
 INDEX_PATH = ROOT / ".index.json"
 TMP_DIR = ROOT / ".tmp"
 

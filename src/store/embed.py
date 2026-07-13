@@ -14,8 +14,8 @@ import json
 import struct
 from typing import Any
 
-from models import GenerationConfig
-from workflow import BuildInfo
+from gen.models import GenerationConfig
+from gen.workflow import BuildInfo
 
 CHUNK_FOURCC = b"cMTA"  # custom "comfy metadata" chunk
 # v1 = legacy WildcardBlock {input, wildcards: str}; v2 = tree {input, items:[...]}.

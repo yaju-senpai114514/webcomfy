@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import random
 
-from models import (
+from gen.models import (
     NOPROMPT,
     GenerationConfig,
     LoraConfig,

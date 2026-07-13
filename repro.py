@@ -12,13 +12,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import comfy
-import embed
-import pipeline
-import servers
-import storage
-from models import GenerationConfig
-from workflow import BuildInfo
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))  # app modules live in src/
+
+from comfy import client as comfy  # noqa: E402
+from gen import pipeline  # noqa: E402
+from gen.models import GenerationConfig  # noqa: E402
+from gen.workflow import BuildInfo  # noqa: E402
+from store import embed, servers, storage  # noqa: E402
 
 
 def reproduce(webp_bytes: bytes) -> tuple[bytes, GenerationConfig, int, BuildInfo]:

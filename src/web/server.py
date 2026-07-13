@@ -17,21 +17,15 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
-import analyze
-import configs
-import embed
-import localstore
-import modelapi
-import pipeline
-import servers as serverstore
-import storage
-from comfy import ComfyClient, ComfyOptions, Event
-from modelapi import ModelAPIError
-from models import GenerationConfig
-from servers import ServerEntry
-
-BASE_DIR = Path(__file__).resolve().parent
-STATIC_DIR = BASE_DIR / "static"
+from comfy import modelapi
+from comfy.client import ComfyClient, ComfyOptions, Event
+from comfy.modelapi import ModelAPIError
+from gen import analyze, pipeline
+from gen.models import GenerationConfig
+from paths import STATIC_DIR
+from store import configs, embed, localstore, storage
+from store import servers as serverstore
+from store.servers import ServerEntry
 
 app = FastAPI(title="comfy-web")
 configs.ensure_seeded()

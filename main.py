@@ -9,10 +9,13 @@ Both share one asyncio event loop via uvicorn.Server.serve().
 import asyncio
 import os
 import signal
+import sys
+from pathlib import Path
 
 import uvicorn
 from dotenv import load_dotenv
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))  # app modules live in src/
 load_dotenv()  # HOST/PORT (and the rest) come from .env; real env vars still win
 
 
@@ -26,8 +29,8 @@ class _NoSignalServer(uvicorn.Server):
 
 
 async def _serve_both(host: str, port: int) -> None:
-    main_srv = _NoSignalServer(uvicorn.Config("server:app", host=host, port=port, reload=False))
-    view_srv = _NoSignalServer(uvicorn.Config("viewer:app", host=host, port=port + 1, reload=False))
+    main_srv = _NoSignalServer(uvicorn.Config("web.server:app", host=host, port=port, reload=False))
+    view_srv = _NoSignalServer(uvicorn.Config("web.viewer:app", host=host, port=port + 1, reload=False))
 
     def _shutdown() -> None:
         main_srv.should_exit = True

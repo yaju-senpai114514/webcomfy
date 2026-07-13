@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import random
 
-import prompt
-from models import GenerationConfig
-from workflow import BuildInfo, Graph, build_workflow
+from gen import prompt
+from gen.models import GenerationConfig
+from gen.workflow import BuildInfo, Graph, build_workflow
 
 # Cap the master seed at JS's safe-integer max (2^53-1) so it round-trips through
 # the browser (JSON numbers parse as float64) without precision loss — otherwise

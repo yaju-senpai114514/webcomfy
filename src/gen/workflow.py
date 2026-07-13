@@ -19,7 +19,7 @@ from __future__ import annotations
 import random
 from typing import TypedDict
 
-from models import GenerationConfig, LoraConfig
+from gen.models import GenerationConfig, LoraConfig
 
 # A ComfyUI link is [node_id, output_index]; a node is class_type + inputs.
 Link = list[str | int]

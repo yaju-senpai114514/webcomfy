@@ -183,33 +183,41 @@ HOST=0.0.0.0 PORT=9000 uv run python main.py
 ## 코드 구조
 
 ```
-main.py        # uvicorn 런처 (UI + 뷰어 듀얼 서버)
-server.py      # FastAPI: UI 서빙 + /api/* + /ws/generate + /api/afk/* + 모델 프록시
-comfy.py       # ComfyClient — 서버 1대용 ComfyUI 클라이언트 (옵션/큐/웹소켓/큐 상태)
-servers.py     # 원격 ComfyUI 서버 레지스트리 (servers.json, .env에서 시딩)
-modelapi.py    # 각 서버의 /webcomfy/models API 비동기 클라이언트 (httpx 스트리밍)
-localstore.py  # 로컬 모델 저장소 (프로비저닝 소스 + /models의 "local" 백엔드)
-prompt.py      # 와일드카드 해석 엔진 (Base + 블록 → 최종 프롬프트 + 매칭 LoRA)
-workflow.py    # (해석된 프롬프트 + LoRA + RNG) → ComfyUI 그래프 빌더
-pipeline.py    # master seed 하나 → 와일드카드+시드 일괄 해석 (재현 단위)
-embed.py       # webp RIFF 청크에 gz(config+seed) 임베드/추출
-repro.py       # webp에서 복구해 재생성하는 CLI
-storage.py     # webp 인코딩 + 경로 템플릿(+메타 임베드) → 디스크 저장
-configs.py     # 다중 named-config 저장소 (CRUD + 선택 상태)
-models.py      # Pydantic 스키마 (설정의 단일 진실 공급원)
-configs/       # 저장된 구성들 (<id>.json + _state.json) — 런타임 생성
-servers.json   # 서버 레지스트리 (토큰 포함 — gitignore) — 런타임 생성
-local_models/  # 로컬 모델 저장소 (카테고리별 서브폴더 — gitignore) — 런타임 생성
-config.json    # 레거시 단일 설정 (첫 실행 시 configs/default 로 이관)
+main.py            # uvicorn 런처 (UI + 뷰어 듀얼 서버) — src/를 import path에 추가
+repro.py           # webp에서 복구해 재생성하는 CLI
+src/
+  paths.py         # ROOT_DIR/STATIC_DIR — 런타임 파일은 전부 레포 루트 기준
+  gen/             # 생성 도메인: config → 프롬프트 해석 → ComfyUI 그래프
+    models.py      #   Pydantic 스키마 (설정의 단일 진실 공급원)
+    prompt.py      #   와일드카드 해석 엔진 (Base + 블록 → 최종 프롬프트 + 매칭 LoRA)
+    analyze.py     #   와일드카드 트리 정적 검증 (dead branch / 치환 불가 토큰)
+    workflow.py    #   (해석된 프롬프트 + LoRA + RNG) → ComfyUI 그래프 빌더
+    pipeline.py    #   master seed 하나 → 와일드카드+시드 일괄 해석 (재현 단위)
+  comfy/           # 원격 ComfyUI 통신
+    client.py      #   ComfyClient — 옵션/큐잉/웹소켓 이벤트 스트림/큐 상태
+    modelapi.py    #   /webcomfy/models API 비동기 클라이언트 (httpx 스트리밍)
+  store/           # 영속성
+    configs.py     #   다중 named-config 저장소 (CRUD + 선택 상태)
+    servers.py     #   원격 서버 레지스트리 (servers.json, .env에서 시딩)
+    localstore.py  #   로컬 모델 저장소 (프로비저닝 소스 + /models의 "local" 백엔드)
+    storage.py     #   webp 인코딩 + 경로 템플릿(+메타 임베드) → 디스크 저장
+    embed.py       #   webp RIFF 청크에 gz(config+seed) 임베드/추출
+  web/             # HTTP 계층 (FastAPI 앱)
+    server.py      #   UI 서빙 + /api/* + /ws/* + 모델 프록시 + AFK 오케스트레이터
+    viewer.py      #   read-only 갤러리/구성 뷰어 (PORT+1)
+configs/           # 저장된 구성들 (<id>.json + _state.json) — 런타임 생성
+servers.json       # 서버 레지스트리 (토큰 포함 — gitignore) — 런타임 생성
+local_models/      # 로컬 모델 저장소 (카테고리별 서브폴더 — gitignore) — 런타임 생성
+config.json        # 레거시 단일 설정 (첫 실행 시 configs/default 로 이관)
 static/
-  index.html   # 마크업 (단일 컬럼 + 플로팅 미리보기 레이아웃)
-  style.css    # 스타일 (+ 모바일 미디어쿼리, 서버 패널·AFK 카드) + style_v2.css (레이아웃)
-  main.js      # 폼 로직 + 웹소켓(생성·AFK) + 서버/구성 관리 + 재현 + localStorage
+  index.html       # 마크업 (단일 컬럼 + 플로팅 미리보기 레이아웃)
+  style.css        # 스타일 (+ 모바일 미디어쿼리, 서버 패널·AFK 카드) + style_v2.css (레이아웃)
+  main.js          # 폼 로직 + 웹소켓(생성·AFK) + 서버/구성 관리 + 재현 + localStorage
   models.html / models.js / models.css   # 모델 관리 페이지 (/models)
 api_prompt_template.json  # 원본 ComfyUI 워크플로우 (참조용, 런타임 미사용)
 ```
 
-### `models.py` — 타입 스키마
+### `gen/models.py` — 타입 스키마
 
 설정의 형태를 정의하는 **단일 진실 공급원**. UI·API·빌더가 모두 이 모델을 공유한다.
 
@@ -217,30 +225,30 @@ api_prompt_template.json  # 원본 ComfyUI 워크플로우 (참조용, 런타임
 - 강한 검증: `extra="forbid"`(미지의 키 거부), 범위 제약(`steps≥1`, `width 64~8192`, `denoise 0~1`, `webp_quality 1~100` …), `Literal` enum(`mode`, `add_noise` 등)
 - `LoraConfig.matches(tokens)` / `GenerationConfig.matched_loras(final_positive)` — 최종 프롬프트 토큰 기준의 상시/조건부 LoRA 판정을 모델에 캡슐화
 
-### `prompt.py` — 와일드카드 해석 엔진
+### `gen/prompt.py` — 와일드카드 해석 엔진
 
 `resolve(cfg, rng) -> (final_positive, matched_loras)`. Base 프롬프트를 토큰화한 뒤 블록을 차례로 적용한다: 후보 줄을 파싱(`|n|` 가중치 / `#` 주석 / `NOPROMPT`)하고 가중 랜덤으로 한 줄을 골라, input 토큰을 consume하고 첫 등장 위치에 삽입한다. 그 결과 최종 프롬프트로부터 `cfg.matched_loras()`가 켜질 LoRA를 정한다. `rng`를 주입받으므로 호출마다(=AFK 매 장마다) 다시 굴려진다.
 
-### `workflow.py` — 그래프 빌더
+### `gen/workflow.py` — 그래프 빌더
 
 `build_workflow(cfg, positive, loras, rng) -> (graph, output_labels, info)`.
 이미 해석된 `positive` 문자열과 그 프롬프트가 켠 `loras`를 받아 ComfyUI `/prompt` 그래프를 만든다. LoRA를 순서대로 체인에 끼우고 강도를 직접 박는다. seed `-1`은 주입된 `rng`(와일드카드를 굴린 바로 그 RNG)에서 뽑혀 한 master seed로 전체가 재현되며, 그 값은 `info`(`BuildInfo`: `seed1`/`seed2`/`positive`/`loras`)로 돌려줘 저장·UI 표시에 쓰인다. 노드 링크는 `Link = list[str | int]`(`["node_id", output_index]`)로 표현.
 
 `output_labels`는 두 `SaveImageWebsocket` 노드를 `intermediate`/`final`로 매핑해, 클라이언트가 들어오는 이미지 프레임을 구분하게 한다.
 
-### `pipeline.py` · `embed.py` · `repro.py` — 재현
+### `gen/pipeline.py` · `store/embed.py` · `repro.py` — 재현
 
 `pipeline.prepare(cfg, master_seed)`가 `random.Random(master_seed)` 하나로 `prompt.resolve`(와일드카드) → `build_workflow`(시드)를 차례로 돌려 `(graph, labels, info)`를 만든다. `embed.embed_metadata/extract`는 webp RIFF 컨테이너에 `cMTA` 청크로 gz(JSON) 메타를 덧붙이고 되읽으며 `(GenerationConfig, master_seed)`를 복구한다. `repro.reproduce(webp_bytes)`가 둘을 묶어 webp만으로 재생성한다.
 
-### `storage.py` — 저장
+### `store/storage.py` — 저장
 
 `encode_webp(png, quality, lossless)`로 Pillow가 PNG 바이트를 webp로 재인코딩하고, `render_path(save_cfg, seed, index, now)`로 경로 템플릿을 실제 경로로 만든다(`{cname}`는 `save_cfg.cname`에서, 미지의 placeholder는 `ValueError`로 즉시 실패). `save_image()`가 둘을 묶어 디스크에 쓴다.
 
-### `configs.py` — named-config 저장소
+### `store/configs.py` — named-config 저장소
 
 여러 설정 묶음을 `configs/<id>.json`(메타 + `GenerationConfig`)으로 저장하고 `_state.json`에 선택 id를 둔다. `list_metas` / `get` / `create` / `update`(이름·config 선택적) / `duplicate` / `delete` / `get_selected` / `set_selected`, 그리고 첫 실행 시 레거시 `config.json`을 `default`로 옮기는 `ensure_seeded`를 제공한다. `StoredConfig`(= `ConfigMeta` + `config`)로 검증한다.
 
-### `comfy.py` — ComfyUI 클라이언트
+### `comfy/client.py` — ComfyUI 클라이언트
 
 `ComfyClient(base_url)` — 서버 1대를 향하는 동기 클라이언트. webcomfy는 레지스트리의 서버마다 이걸 만들어 쓴다.
 
@@ -249,13 +257,13 @@ api_prompt_template.json  # 원본 ComfyUI 워크플로우 (참조용, 런타임
 - `run(workflow, labels, on_event)` — `/prompt`로 큐잉 후 ComfyUI 웹소켓을 구동하며 이벤트를 콜백으로 흘려보냄(대화형·AFK 모두 사용)
 - 이벤트는 `type`으로 구분되는 **TypedDict 태그 유니온**(`Event`): `queued` / `node` / `progress` / `image` / `preview` / `error` / `done`. 이미지 프레임은 앞 8바이트(헤더)를 떼고 raw PNG 바이트를 실어 보낸다.
 
-### `servers.py` · `modelapi.py` — 다중 서버 레지스트리와 모델 API 클라이언트
+### `store/servers.py` · `comfy/modelapi.py` — 다중 서버 레지스트리와 모델 API 클라이언트
 
-`servers.py`는 `servers.json` 하나에 `ServerEntry`(id/name/base_url/token/enabled) 목록을 원자적으로 저장하는 CRUD 저장소. 첫 실행 시 `.env`의 `COMFY_BASE_URL`/`WEBCOMFY_MODELS_TOKEN`을 `default` 서버로 옮긴다. `default_server()` = 첫 활성 서버(서버 지정이 없는 요청의 대상).
+`store/servers.py`는 `servers.json` 하나에 `ServerEntry`(id/name/base_url/token/enabled) 목록을 원자적으로 저장하는 CRUD 저장소. 첫 실행 시 `.env`의 `COMFY_BASE_URL`/`WEBCOMFY_MODELS_TOKEN`을 `default` 서버로 옮긴다. `default_server()` = 첫 활성 서버(서버 지정이 없는 요청의 대상).
 
-`modelapi.py`는 각 서버의 `/webcomfy/models`(MODEL_API_SPEC v1)를 소비하는 httpx 비동기 클라이언트: `summary`/`list_files`/`file_meta`/`download`(스트리밍 컨텍스트, Range 전달)/`upload`(async 이터레이터 본문 스트리밍, `replace`·`sha256` 쿼리)/`delete`/`trigger_hash`. 업스트림 오류는 스펙의 `{code, message}`를 담은 `ModelAPIError`로 번역되고, FastAPI 예외 핸들러가 그대로 브라우저에 중계한다. 타임아웃은 connect/first-byte에만 걸고 본문 스트리밍에는 걸지 않는다(수 GB 파일).
+`comfy/modelapi.py`는 각 서버의 `/webcomfy/models`(MODEL_API_SPEC v1)를 소비하는 httpx 비동기 클라이언트: `summary`/`list_files`/`file_meta`/`download`(스트리밍 컨텍스트, Range 전달)/`upload`(async 이터레이터 본문 스트리밍, `replace`·`sha256` 쿼리)/`delete`/`trigger_hash`. 업스트림 오류는 스펙의 `{code, message}`를 담은 `ModelAPIError`로 번역되고, FastAPI 예외 핸들러가 그대로 브라우저에 중계한다. 타임아웃은 connect/first-byte에만 걸고 본문 스트리밍에는 걸지 않는다(수 GB 파일).
 
-### `server.py` — FastAPI 백엔드
+### `web/server.py` — FastAPI 백엔드
 
 | 엔드포인트 | 역할 |
 |-----------|------|

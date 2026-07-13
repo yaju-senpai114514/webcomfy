@@ -10,8 +10,8 @@ from typing import Any
 
 from PIL import Image
 
-import embed
-from models import SaveConfig
+from store import embed
+from gen.models import SaveConfig
 
 # Placeholders the path template may use.
 TEMPLATE_KEYS = ("date", "time", "datetime", "seed", "index", "ext", "cname")

@@ -14,7 +14,7 @@ from typing import Any, AsyncGenerator, AsyncIterator
 
 import httpx
 
-from servers import ServerEntry
+from store.servers import ServerEntry
 
 CHUNK = 1 << 20
 

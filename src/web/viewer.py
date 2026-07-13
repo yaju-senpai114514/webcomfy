@@ -23,12 +23,10 @@ from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnec
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-import configs
-import embed
+from paths import ROOT_DIR, STATIC_DIR
+from store import configs, embed
 
-BASE_DIR = Path(__file__).resolve().parent
-STATIC_DIR = BASE_DIR / "static"
-OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", BASE_DIR / "output")).resolve()
+OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", ROOT_DIR / "output")).resolve()
 IMG_EXTS = {".webp", ".png", ".jpg", ".jpeg"}
 
 app = FastAPI(title="comfy-web viewer")

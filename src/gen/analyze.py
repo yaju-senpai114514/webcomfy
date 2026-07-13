@@ -24,7 +24,7 @@ import re
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from models import NOPROMPT, PromptSpec, WildcardBlock, _tokenize
+from gen.models import NOPROMPT, PromptSpec, WildcardBlock, _tokenize
 
 _PLACEHOLDER_RE = re.compile(r"^__.+__$")  # a wildcard placeholder token, e.g. __artist__
 

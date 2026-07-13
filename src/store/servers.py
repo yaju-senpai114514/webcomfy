@@ -15,7 +15,9 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-SERVERS_FILE = Path(__file__).resolve().parent / "servers.json"
+from paths import ROOT_DIR
+
+SERVERS_FILE = ROOT_DIR / "servers.json"
 
 
 class ServerEntry(BaseModel):
