@@ -1,0 +1,7 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "typeCheckingMode": "standard",
+  "include": ["comfy.py", "models.py", "workflow.py", "prompt.py", "pipeline.py", "embed.py", "storage.py", "configs.py", "repro.py", "server.py", "main.py"],
+  "reportMissingModuleSource": false
+}
