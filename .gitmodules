@@ -1,0 +1,3 @@
+[submodule "ComfyUI-Remote-Manager"]
+	path = ComfyUI-Remote-Manager
+	url = ../ComfyUI-Remote-Manager.git
