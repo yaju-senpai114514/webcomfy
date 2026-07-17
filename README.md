@@ -27,6 +27,11 @@
 ## 빠른 시작
 
 ```bash
+# 클론 — 모델 API 커스텀 노드(ComfyUI-Remote-Manager)가 서브모듈이므로 함께 받는다
+git clone --recurse-submodules <repo-url>
+# 이미 클론한 레포라면:
+git submodule update --init
+
 # 의존성 설치 (uv 사용)
 uv sync
 
@@ -38,7 +43,7 @@ echo 'WEBCOMFY_MODELS_TOKEN="..."' >> .env    # 그 서버의 모델 API 토큰 
 uv run python main.py          # → UI :8000 · read-only 뷰어 :8001
 ```
 
-추가 서버는 UI의 **ComfyUI 서버** 패널에서 등록한다. 원격 모델 관리·투명 프로비저닝을 쓰려면 각 ComfyUI 서버에 아래 [원격 ComfyUI 모델 API](#원격-comfyui-모델-api)를 구현한 라우트 전용 커스텀 노드가 설치되어 있어야 한다(생성 자체는 노드 없이도 동작).
+추가 서버는 UI의 **ComfyUI 서버** 패널에서 등록한다. 원격 모델 관리·투명 프로비저닝을 쓰려면 각 ComfyUI 서버에 아래 [원격 ComfyUI 모델 API](#원격-comfyui-모델-api)를 구현한 라우트 전용 커스텀 노드가 설치되어 있어야 한다(생성 자체는 노드 없이도 동작). 그 노드가 바로 레포 루트의 **`ComfyUI-Remote-Manager` 서브모듈**이며, `setup_comfyui.sh <설치경로>`로 백엔드를 셋업하면 서브모듈에 핀된 버전이 `custom_nodes/`에 설치된다.
 
 `.env` 항목: `COMFY_BASE_URL` / `WEBCOMFY_MODELS_TOKEN`(첫 실행 시딩용) · `HOST` / `PORT` · `LOCAL_MODELS_DIR`(기본 `local_models/`) · `OUTPUT_DIR`(뷰어, 기본 `output/`).
 
