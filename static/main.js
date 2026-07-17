@@ -723,6 +723,10 @@ function renderAfkServers() {
 function afkSelectedIds() {
   return [...$("afkServers").querySelectorAll("input:checked")].map((c) => c.value);
 }
+function afkSetAll(on) {
+  $("afkServers").querySelectorAll("input").forEach((c) => { if (!c.disabled) c.checked = on; });
+  LS.set("afkServers", afkSelectedIds());
+}
 
 // --- AFK background loop + live stream -------------------------------------
 let afkTimer = null;
@@ -732,7 +736,7 @@ function setAfk(text, err) { const s = $("afkStatus"); s.textContent = text; s.c
 
 // Per-server live cards: each AFK worker renders its own progress/frames so
 // several servers generating at once don't fight over the shared 대화형 cards.
-const AFK_CARDS = {};  // server_id → {root, stat, fill, resolved, baseF, finalF}
+const AFK_CARDS = {};  // server_id → {root, stat, fill, prog, resolved, baseF, finalF, node}
 function afkCard(id, name) {
   if (AFK_CARDS[id]) return AFK_CARDS[id];
   const root = document.createElement("div");
@@ -740,6 +744,7 @@ function afkCard(id, name) {
   root.innerHTML =
     '<h3><span class="acname"></span><span class="acstat"></span></h3>' +
     '<div class="bar mini"><div class="fill"></div></div>' +
+    '<div class="acprog">대기 중</div>' +
     '<div class="resolved acres"></div>' +
     '<div class="ac-frames"><div class="frame"><span class="empty">—</span></div>' +
     '<div class="frame"><span class="empty">—</span></div></div>';
@@ -750,8 +755,10 @@ function afkCard(id, name) {
     root,
     stat: root.querySelector(".acstat"),
     fill: root.querySelector(".fill"),
+    prog: root.querySelector(".acprog"),
     resolved: root.querySelector(".acres"),
     baseF: frames[0], finalF: frames[1],
+    node: "",  // 마지막 node 이벤트 — progress %와 합쳐서 표시
   };
   return AFK_CARDS[id];
 }
@@ -766,6 +773,9 @@ function applyAfkStatus(st) {
   $("afkStart").disabled = st.running;
   $("afkStop").disabled = !st.running;
   $("afk_count").disabled = st.running;
+  // 실행 중엔 분산 대상 변경 불가(서버 목록은 시작 시점 스냅샷) — 잠가서 명확히
+  $("afkServers").querySelectorAll("input").forEach((c) => { c.disabled = !!st.running; });
+  $("afkSrvAll").disabled = $("afkSrvNone").disabled = !!st.running;
   const hdr = $("afkBtn");  // header shortcut mirrors the loop state
   hdr.textContent = st.running ? "■ AFK 정지" : "AFK ▶";
   hdr.classList.toggle("running", !!st.running);
@@ -824,14 +834,20 @@ function openAfkStream() {
     }
     const ev = JSON.parse(e.data);
     const card = ev.server_id ? afkCard(ev.server_id, ev.server) : null;
+    // 다중 서버 분산 시 진행 상태(node/progress)는 서버별 카드에만 표시 —
+    // 공용 상단 상태줄/바는 단일 서버일 때만 미러링해 서로 덮어쓰지 않게 한다.
+    const single = Object.keys(AFK_CARDS).length <= 1;
     switch (ev.type) {
+      case "queued":
+        if (card) { card.node = ""; card.prog.textContent = "큐 등록됨"; card.fill.style.width = "0%"; }
+        break;
       case "provision":
-        setStatus(provisionText(ev), ev.state === "failed");
+        if (single) setStatus(provisionText(ev), ev.state === "failed");
         if (card) {
-          card.stat.textContent = ev.state === "uploading"
-            ? `모델 전송 ${ev.total ? Math.round((ev.bytes_done || 0) / ev.total * 100) + "%" : ""}`
-            : (ev.state === "done" ? "모델 전송 완료" : "모델 전송 실패");
+          card.prog.textContent = provisionText(ev);
+          card.prog.classList.toggle("err", ev.state === "failed");
           if (ev.state === "uploading" && ev.total) card.fill.style.width = `${Math.round(ev.bytes_done / ev.total * 100)}%`;
+          if (ev.state === "done") card.fill.style.width = "0%";
         }
         break;
       case "resolved":
@@ -839,17 +855,35 @@ function openAfkStream() {
         if (card) card.resolved.textContent = ev.positive;
         break;
       case "node":
-        setStatus(`AFK${ev.server ? "[" + ev.server + "]" : ""} 실행 중: ${ev.node}`, false);
+        if (single) setStatus(`AFK${ev.server ? "[" + ev.server + "]" : ""} 실행 중: ${ev.node}`, false);
+        if (card) { card.node = ev.node; card.prog.classList.remove("err"); card.prog.textContent = `실행 중: ${ev.node}`; }
         break;
       case "progress":
         if (ev.max) {
           const pct = `${Math.round(ev.value / ev.max * 100)}%`;
-          $("barFill").style.width = pct;
-          if (card) card.fill.style.width = pct;
+          if (single) $("barFill").style.width = pct;
+          if (card) {
+            card.fill.style.width = pct;
+            card.prog.textContent = (card.node ? `실행 중: ${card.node} · ` : "") + pct;
+          }
         }
         break;
       case "image": case "preview": pending = ev; break;
-      case "saved": if (ev.path) setStatus(`AFK${ev.server ? "[" + ev.server + "]" : ""} 저장: ${ev.path}`, false); break;
+      case "saved":
+        if (ev.path) setStatus(`AFK${ev.server ? "[" + ev.server + "]" : ""} 저장: ${ev.path}`, false);
+        if (card && ev.path) { card.prog.textContent = "저장됨 ✓"; card.node = ""; }
+        break;
+      case "done":
+        if (card) { card.fill.style.width = "100%"; card.prog.textContent = "완료 ✓"; card.node = ""; }
+        break;
+      case "error":
+        if (card) {
+          const msg = ev.data && ev.data.message ? ev.data.message : JSON.stringify(ev.data || {});
+          card.prog.textContent = "에러: " + msg;
+          card.prog.classList.add("err");
+          card.node = "";
+        }
+        break;
       case "afk": applyAfkStatus(ev); break;
     }
   };
@@ -860,8 +894,9 @@ function closeAfkStream() { if (afkWs) { try { afkWs.close(); } catch {} afkWs =
 
 async function afkStart() {
   const server_ids = afkSelectedIds();
-  if (!server_ids.length) { setAfk("시작 실패: AFK 분산 서버를 하나 이상 체크하세요", true); return; }
-  setAfk("AFK 시작 중...", false);
+  if (!server_ids.length) { setAfk("시작 실패: AFK 분산 대상 백엔드를 하나 이상 체크하세요 (저장/AFK 패널)", true); return; }
+  const names = SERVERS.filter((s) => server_ids.includes(s.id)).map((s) => s.name).join(", ");
+  setAfk(`AFK 시작 중... → ${names}`, false);
   if (SELECTED) saveCurrentConfig();  // AFK 시작 시 현재 구성 자동저장(→ 린터 체크까지 트리거)
   const r = await fetch("/api/afk/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ config: gatherConfig(), server_ids }) });
   if (!r.ok) { const e = await r.json().catch(() => ({})); setAfk("시작 실패: " + (e.error || r.status), true); return; }
@@ -997,6 +1032,8 @@ $("addLora").addEventListener("click", () => $("loraRows").appendChild(loraRow({
 $("swapBtn").addEventListener("click", () => { const w = $("width").value; $("width").value = $("height").value; $("height").value = w; updateHints(); });
 $("afkStart").addEventListener("click", afkStart);
 $("afkStop").addEventListener("click", afkStop);
+$("afkSrvAll").addEventListener("click", () => afkSetAll(true));
+$("afkSrvNone").addEventListener("click", () => afkSetAll(false));
 $("afkBtn").addEventListener("click", () => (afkRunning ? afkStop() : afkStart()));
 $("repro_file").addEventListener("change", async (e) => {
   const f = e.target.files && e.target.files[0]; if (!f) return;

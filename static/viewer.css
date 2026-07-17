@@ -110,6 +110,16 @@ body.lb-open { overflow:hidden; }  /* no background scroll behind the overlay */
 /* .live-main loads after style.css, so display:flex would beat .hidden — re-assert */
 .live-main.hidden { display:none; }
 .live-prog { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+/* per-server progress rows (multi-backend distributed AFK) */
+.live-srvs { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+.live-srvs:empty { display:none; }
+.live-srv { display:grid; grid-template-columns:max-content max-content 1fr minmax(120px, max-content); align-items:center; gap:10px; font-size:12px; }
+.live-srv .bar { height:4px; }
+.live-srv .ls-name { font-weight:600; color:var(--fg); }
+.live-srv .ls-cnt { color:var(--muted); }
+.live-srv .ls-stat { color:var(--muted); text-align:right; }
+.live-srv.stopped { opacity:.7; }
+.live-srv.errored .ls-name { color:#f77; }
 .live-cfg-head { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
 .lb-meta.hidden { display:none; }
 

@@ -270,6 +270,30 @@ function selectConfig(c, row) {
 // ---------- live (AFK loop mirror) ----------
 let liveWs = null, livePending = null, livePoll = null, liveRunning = null;
 
+// 다중 백엔드 분산 AFK: 서버별 진행 상태 행 (이름 · N장 · 진행바 · 실행 중 노드/%)
+const LIVE_SRV = {};  // server_id → {root, name, cnt, fill, stat, node}
+function liveSrvRow(id, name) {
+  if (LIVE_SRV[id]) {
+    if (name) LIVE_SRV[id].name.textContent = name;
+    return LIVE_SRV[id];
+  }
+  const root = el("div", "live-srv");
+  const nm = el("span", "ls-name", name || id);
+  const cnt = el("span", "ls-cnt", "");
+  const bar = el("div", "bar mini");
+  const fill = el("div");
+  bar.append(fill);
+  const stat = el("span", "ls-stat", "대기 중");
+  root.append(nm, cnt, bar, stat);
+  $("liveSrvs").append(root);
+  LIVE_SRV[id] = { root, name: nm, cnt, fill, stat, node: "" };
+  return LIVE_SRV[id];
+}
+function clearLiveSrvs() {
+  $("liveSrvs").textContent = "";
+  for (const k of Object.keys(LIVE_SRV)) delete LIVE_SRV[k];
+}
+
 function escapeHtml(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
 function setLiveStatus(t, err) { const s = $("liveStatus"); s.textContent = t; s.className = "status mt8" + (err ? " err" : ""); }
 function setLiveImg(frameId, sizeId, blob) {
@@ -299,6 +323,19 @@ async function loadLiveConfig() {
 function applyLiveStatus(st) {
   if (st.available === false) { setLiveStatus("AFK 루프에 연결할 수 없습니다 (생성기와 함께 실행 필요).", true); return; }
   const running = !!st.running;
+  if (running !== liveRunning) {
+    liveRunning = running;
+    if (running) clearLiveSrvs();  // 새 런 → 이전 런의 서버 행 제거
+    loadLiveConfig();              // run changed → refresh config
+  }
+  // 서버별 워커 배지 (분산 AFK: 각 서버가 자기 행에 카운트/정지/에러 표시)
+  for (const w of st.workers || []) {
+    const r = liveSrvRow(w.id, w.name);
+    r.cnt.textContent = `${w.count}장` + (w.running ? "" : " · 정지");
+    r.root.classList.toggle("stopped", !w.running);
+    r.root.classList.toggle("errored", !!w.last_error);
+    r.root.title = w.last_error || "";
+  }
   const tgt = st.target ? ` / ${st.target}` : "";
   if (running) {
     setLiveStatus(`AFK 동작 중 · ${st.count}${tgt}장 저장${st.last_error ? " · 최근 에러: " + st.last_error : ""}`, !!st.last_error);
@@ -306,7 +343,6 @@ function applyLiveStatus(st) {
     setLiveStatus(`AFK 정지됨${st.count ? ` · 총 ${st.count}장 저장` : ""}${st.last_error ? " · 마지막 에러: " + st.last_error : ""}`, !!st.last_error);
     $("barFill").style.width = "0%";
   }
-  if (running !== liveRunning) { liveRunning = running; loadLiveConfig(); }  // run changed → refresh config
 }
 async function pollLive() {
   try {
@@ -328,13 +364,35 @@ function openLiveStream() {
       livePending = null; return;
     }
     const ev = JSON.parse(e.data);
+    const row = ev.server_id ? liveSrvRow(ev.server_id, ev.server) : null;
+    // 다중 서버 분산 시 진행 상태(node/progress)는 서버별 행에만 표시 —
+    // 공용 상태줄/바는 단일 서버일 때만 미러링해 서로 덮어쓰지 않게 한다.
+    const single = Object.keys(LIVE_SRV).length <= 1;
     switch (ev.type) {
       case "resolved": showResolved(ev.positive, ev.loras, ev.master_seed); break;
-      case "node": setLiveStatus("실행 중: " + ev.node, false); break;
-      case "progress": if (ev.max) $("barFill").style.width = `${Math.round(ev.value / ev.max * 100)}%`; break;
+      case "node":
+        if (single) setLiveStatus("실행 중: " + ev.node, false);
+        if (row) { row.node = ev.node; row.stat.textContent = "실행 중: " + ev.node; }
+        break;
+      case "progress":
+        if (ev.max) {
+          const pct = `${Math.round(ev.value / ev.max * 100)}%`;
+          if (single) $("barFill").style.width = pct;
+          if (row) {
+            row.fill.style.width = pct;
+            row.stat.textContent = (row.node ? "실행 중: " + row.node + " · " : "") + pct;
+          }
+        }
+        break;
       case "image": case "preview": livePending = ev; break;
-      case "saved": if (ev.path) setLiveStatus("저장됨: " + ev.path, false); break;
-      case "done": $("barFill").style.width = "100%"; break;
+      case "saved":
+        if (ev.path) setLiveStatus(`저장됨${ev.server ? " [" + ev.server + "]" : ""}: ${ev.path}`, false);
+        if (row && ev.path) { row.stat.textContent = "저장됨 ✓"; row.node = ""; }
+        break;
+      case "done":
+        if (single) $("barFill").style.width = "100%";
+        if (row) { row.fill.style.width = "100%"; row.stat.textContent = "완료 ✓"; row.node = ""; }
+        break;
       case "afk": applyLiveStatus(ev); break;
     }
   };

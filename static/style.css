@@ -200,6 +200,7 @@ header .srv-sel { width:auto; max-width:180px; padding:4px 6px; font-size:12px; 
 .srv-mapi { font-size:9px; font-weight:700; color:var(--accent); border:1px solid var(--accent); border-radius:3px; padding:0 3px; }
 .afk-srvs { display:flex; flex-wrap:wrap; gap:4px 14px; padding:4px 0; }
 .afk-srvs .afk-srv { font-size:12px; color:var(--fg); }
+.afk-srv-tools { display:flex; gap:6px; margin-top:2px; }
 
 /* per-server AFK live cards */
 .afk-cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:14px; }
@@ -211,6 +212,8 @@ header .srv-sel { width:auto; max-width:180px; padding:4px 6px; font-size:12px; 
 .afk-card .acstat { color:var(--muted); font-weight:400; font-size:12px; }
 .afk-card .bar.mini { height:4px; margin-bottom:6px; }
 .afk-card .bar.mini .fill { height:100%; width:0; background:var(--accent); transition:width .15s; }
+.afk-card .acprog { font-size:12px; color:var(--muted); min-height:16px; margin-bottom:6px; }
+.afk-card .acprog.err { color:#f77; }
 .afk-card .acres { max-height:3em; overflow:hidden; margin-bottom:6px; }
 .afk-card .ac-frames { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .afk-card .frame { background:#0c0d10; border-radius:6px; min-height:120px; display:flex; align-items:center; justify-content:center; overflow:hidden; }

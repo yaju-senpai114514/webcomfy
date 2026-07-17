@@ -119,8 +119,12 @@
         <div class="field"><label class="inline lbl-chk"><input id="save_lossless" type="checkbox" /> 무손실(lossless)</label></div>
       </div>
       <div class="hint">placeholder: <code>{date}</code> <code>{time}</code> <code>{datetime}</code> <code>{seed}</code> <code>{index}</code> <code>{cname}</code> <code>{ext}</code></div>
-      <div class="field mt8"><label>AFK 분산 서버 (체크된 서버들이 동시에 생성)</label>
-        <div id="afkServers" class="afk-srvs"></div></div>
+      <div class="field mt8"><label>AFK 분산 대상 백엔드 (체크된 서버들이 동시에 생성)</label>
+        <div id="afkServers" class="afk-srvs"></div>
+        <div class="afk-srv-tools">
+          <button class="sm" id="afkSrvAll" type="button">전체 선택</button>
+          <button class="sm" id="afkSrvNone" type="button">전체 해제</button>
+        </div></div>
       <div class="grid2 mt8">
         <div class="field"><label>AFK 생성 개수 (0=무한)</label><input id="afk_count" type="number" min="0" /></div>
         <div class="field afk-btns">
