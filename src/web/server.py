@@ -52,7 +52,11 @@ def _resolve_server(sid: str | None) -> ServerEntry:
 
 
 def missing_models(cfg: GenerationConfig, options: ComfyOptions) -> list[tuple[str, str]]:
-    """(kind, name) models the config needs that a server's /object_info doesn't offer."""
+    """(kind, name) models the config needs that a server's /object_info doesn't offer.
+
+    An empty options list still counts as "missing" — a fresh server with zero
+    installed models of a kind is exactly the one that needs provisioning.
+    """
     missing: list[tuple[str, str]] = []
     for kind, name, available in (
         ("unet", cfg.models.unet_name, options["unets"]),
@@ -60,10 +64,10 @@ def missing_models(cfg: GenerationConfig, options: ComfyOptions) -> list[tuple[s
         ("vae", cfg.models.vae_name, options["vaes"]),
         ("upscale", cfg.upscale.model_name, options["upscale_models"]),
     ):
-        if name and available and name not in available:
+        if name and name not in available:
             missing.append((kind, name))
     for lora in cfg.loras:
-        if lora.name and options["loras"] and lora.name not in options["loras"]:
+        if lora.name and lora.name not in options["loras"] and ("lora", lora.name) not in missing:
             missing.append(("lora", lora.name))
     return missing
 
