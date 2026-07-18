@@ -16,6 +16,7 @@ Endpoints:
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -116,11 +117,15 @@ def api_meta(path: str = Query(...)) -> dict[str, Any]:
 
 
 # --- live AFK loop (read-only mirror) --------------------------------------
-# main.py runs server:app and viewer:app in one process/event loop, so we can
-# reach the same AfkManager singleton and subscribe to its live events directly.
+# main.py runs web.server:app and web.viewer:app in one process/event loop, so
+# we can reach the same AfkManager singleton and subscribe to its live events.
 def _afk() -> Any:
-    import server  # cached module; only meaningful alongside server:app
-    return server.afk
+    # Only the already-loaded module: a standalone viewer must not import the
+    # generation server (fresh import = separate, always-empty AfkManager).
+    mod = sys.modules.get("web.server")
+    if mod is None:
+        raise RuntimeError("generation server not loaded in this process")
+    return mod.afk
 
 
 @app.get("/api/afk/config")
