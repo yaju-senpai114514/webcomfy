@@ -270,23 +270,44 @@ function selectConfig(c, row) {
 // ---------- live (AFK loop mirror) ----------
 let liveWs = null, livePending = null, livePoll = null, liveRunning = null;
 
-// 다중 백엔드 분산 AFK: 서버별 진행 상태 행 (이름 · N장 · 진행바 · 실행 중 노드/%)
-const LIVE_SRV = {};  // server_id → {root, name, cnt, fill, stat, node}
+// 다중 백엔드 분산 AFK: 서버별 인페이지 카드
+// (이름 · N장 · 진행바 · 상태 · 최종 프롬프트 · 라이브 프리뷰/base/hires 프레임)
+const LIVE_SRV = {};  // server_id → {root, name, cnt, fill, stat, resolved, prevW, prevF, baseF, finalF, node}
 function liveSrvRow(id, name) {
   if (LIVE_SRV[id]) {
     if (name) LIVE_SRV[id].name.textContent = name;
     return LIVE_SRV[id];
   }
   const root = el("div", "live-srv");
+  const head = el("div", "ls-head");
   const nm = el("span", "ls-name", name || id);
   const cnt = el("span", "ls-cnt", "");
+  head.append(nm, cnt);
   const bar = el("div", "bar mini");
   const fill = el("div");
   bar.append(fill);
-  const stat = el("span", "ls-stat", "대기 중");
-  root.append(nm, cnt, bar, stat);
+  const stat = el("div", "ls-stat", "대기 중");
+  const res = el("div", "ls-resolved");
+  const framesBox = el("div", "ls-frames");
+  const mkFrame = (cap, cls) => {
+    const wrap = el("div", "ls-fwrap" + (cls ? " " + cls : ""));
+    wrap.append(el("div", "ls-cap", cap));
+    const f = el("div", "frame");
+    wrap.append(f);
+    framesBox.append(wrap);
+    return { wrap, f };
+  };
+  const prev = mkFrame("라이브 프리뷰", "ls-prev hidden");  // 첫 프레임 도착 시 표시
+  const base = mkFrame("① base");
+  base.f.append(el("span", "empty", "—"));
+  const fin = mkFrame("② hires");
+  fin.f.append(el("span", "empty", "—"));
+  root.append(head, bar, stat, res, framesBox);
   $("liveSrvs").append(root);
-  LIVE_SRV[id] = { root, name: nm, cnt, fill, stat, node: "" };
+  LIVE_SRV[id] = {
+    root, name: nm, cnt, fill, stat, resolved: res,
+    prevW: prev.wrap, prevF: prev.f, baseF: base.f, finalF: fin.f, node: "",
+  };
   return LIVE_SRV[id];
 }
 function clearLiveSrvs() {
@@ -296,12 +317,10 @@ function clearLiveSrvs() {
 
 function escapeHtml(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
 function setLiveStatus(t, err) { const s = $("liveStatus"); s.textContent = t; s.className = "status mt8" + (err ? " err" : ""); }
-function setLiveImg(frameId, sizeId, blob) {
-  const url = URL.createObjectURL(blob);
+function setLiveImgEl(frameEl, blob) {
   const img = new Image();
-  img.onload = () => { if (sizeId) $(sizeId).textContent = `${img.naturalWidth}×${img.naturalHeight}`; };
-  img.src = url;
-  const f = $(frameId); f.innerHTML = ""; f.appendChild(img);
+  img.src = URL.createObjectURL(blob);
+  frameEl.innerHTML = ""; frameEl.appendChild(img);
 }
 function showResolved(positive, loras, masterSeed) {
   const lr = (loras && loras.length) ? escapeHtml(loras.join(", ")) : "(없음)";
@@ -358,9 +377,13 @@ function openLiveStream() {
   liveWs.onmessage = (e) => {
     if (typeof e.data !== "string") {
       if (!livePending) return;
-      if (livePending.type === "preview") { $("previewCard").classList.remove("hidden"); setLiveImg("previewFrame", null, e.data); }
-      else if (livePending.label === "intermediate") setLiveImg("baseFrame", "baseSize", e.data);
-      else if (livePending.label === "final") setLiveImg("finalFrame", "finalSize", e.data);
+      // 모든 이미지 프레임은 해당 서버 카드에 렌더링 (플로팅 프리뷰 없음).
+      const prow = livePending.server_id ? liveSrvRow(livePending.server_id, livePending.server) : null;
+      if (prow) {
+        if (livePending.type === "preview") { prow.prevW.classList.remove("hidden"); setLiveImgEl(prow.prevF, e.data); }
+        else if (livePending.label === "intermediate") setLiveImgEl(prow.baseF, e.data);
+        else if (livePending.label === "final") setLiveImgEl(prow.finalF, e.data);
+      }
       livePending = null; return;
     }
     const ev = JSON.parse(e.data);
@@ -369,7 +392,10 @@ function openLiveStream() {
     // 공용 상태줄/바는 단일 서버일 때만 미러링해 서로 덮어쓰지 않게 한다.
     const single = Object.keys(LIVE_SRV).length <= 1;
     switch (ev.type) {
-      case "resolved": showResolved(ev.positive, ev.loras, ev.master_seed); break;
+      case "resolved":
+        showResolved(ev.positive, ev.loras, ev.master_seed);
+        if (row) row.resolved.textContent = ev.positive;
+        break;
       case "node":
         if (single) setLiveStatus("실행 중: " + ev.node, false);
         if (row) { row.node = ev.node; row.stat.textContent = "실행 중: " + ev.node; }
@@ -402,16 +428,12 @@ function openLiveStream() {
 function closeLiveStream() { if (liveWs) { try { liveWs.close(); } catch {} liveWs = null; } }
 
 async function startLive() {
-  $("floatPreview").classList.remove("hidden");
   liveRunning = null;
-  // seed the preview with the last saved image, if any
-  fetch("/api/afk/last.webp").then((r) => (r.ok ? r.blob() : null)).then((b) => { if (b) setLiveImg("finalFrame", "finalSize", b); }).catch(() => {});
   await pollLive();
   openLiveStream();
   if (!livePoll) livePoll = setInterval(pollLive, 4000);  // backup poll alongside the ws
 }
 function stopLive() {
-  $("floatPreview").classList.add("hidden");
   closeLiveStream();
   if (livePoll) { clearInterval(livePoll); livePoll = null; }
 }
@@ -441,12 +463,8 @@ function init() {
     else if (!$("viewConfigs").classList.contains("hidden")) loadConfigs();
     else loadLiveConfig();
   });
-  // floating preview: collapse + click-to-zoom
-  $("fpToggle").addEventListener("click", () => {
-    const c = $("floatPreview").classList.toggle("collapsed");
-    $("fpToggle").textContent = c ? "▸" : "▾";
-  });
-  $("floatPreview").addEventListener("click", (e) => {
+  // live tab: server-card frames zoom into the lightbox
+  $("liveSrvs").addEventListener("click", (e) => {
     if (e.target.tagName === "IMG" && e.target.closest(".frame")) openImgLightbox(e.target.src);
   });
   $("lightbox").addEventListener("click", (e) => { if (e.target === $("lightbox") || e.target.classList.contains("lb-imgwrap")) closeLightbox(); });

@@ -746,8 +746,11 @@ function afkCard(id, name) {
     '<div class="bar mini"><div class="fill"></div></div>' +
     '<div class="acprog">대기 중</div>' +
     '<div class="resolved acres"></div>' +
-    '<div class="ac-frames"><div class="frame"><span class="empty">—</span></div>' +
-    '<div class="frame"><span class="empty">—</span></div></div>';
+    '<div class="ac-frames">' +
+    '<div class="ac-fwrap ac-prev hidden"><div class="ac-cap">라이브 프리뷰</div><div class="frame"></div></div>' +
+    '<div class="ac-fwrap"><div class="ac-cap">① base</div><div class="frame"><span class="empty">—</span></div></div>' +
+    '<div class="ac-fwrap"><div class="ac-cap">② hires</div><div class="frame"><span class="empty">—</span></div></div>' +
+    '</div>';
   root.querySelector(".acname").textContent = name || id;
   $("afkCards").appendChild(root);
   const frames = root.querySelectorAll(".ac-frames .frame");
@@ -757,7 +760,8 @@ function afkCard(id, name) {
     fill: root.querySelector(".fill"),
     prog: root.querySelector(".acprog"),
     resolved: root.querySelector(".acres"),
-    baseF: frames[0], finalF: frames[1],
+    prevW: root.querySelector(".ac-prev"),  // 프리뷰 프레임 도착 전까지 숨김
+    prevF: frames[0], baseF: frames[1], finalF: frames[2],
     node: "",  // 마지막 node 이벤트 — progress %와 합쳐서 표시
   };
   return AFK_CARDS[id];
@@ -822,7 +826,12 @@ function openAfkStream() {
       if (!pending) return;
       const card = pending.server_id ? afkCard(pending.server_id, pending.server) : null;
       if (pending.type === "preview") {
-        $("previewCard").classList.remove("hidden"); setImg("previewFrame", null, e.data);
+        // 다중 백엔드 분산: 라이브 프리뷰는 서버별 카드에 — 공용 플로팅
+        // 프리뷰는 단일 서버일 때만 미러링 (여러 서버 프레임이 뒤섞이지 않게).
+        if (card) { card.prevW.classList.remove("hidden"); setImgEl(card.prevF, e.data); }
+        if (!card || Object.keys(AFK_CARDS).length <= 1) {
+          $("previewCard").classList.remove("hidden"); setImg("previewFrame", null, e.data);
+        }
       } else if (pending.label === "intermediate") {
         if (card) setImgEl(card.baseF, e.data);
         setImg("baseFrame", "baseSize", e.data);  // 공용 카드(v2 플로팅 미리보기)도 갱신

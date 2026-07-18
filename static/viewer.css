@@ -110,31 +110,28 @@ body.lb-open { overflow:hidden; }  /* no background scroll behind the overlay */
 /* .live-main loads after style.css, so display:flex would beat .hidden — re-assert */
 .live-main.hidden { display:none; }
 .live-prog { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
-/* per-server progress rows (multi-backend distributed AFK) */
-.live-srvs { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+/* per-server cards (multi-backend distributed AFK): progress + live frames */
+.live-srvs { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px; margin-top:10px; }
 .live-srvs:empty { display:none; }
-.live-srv { display:grid; grid-template-columns:max-content max-content 1fr minmax(120px, max-content); align-items:center; gap:10px; font-size:12px; }
+.live-srv { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:6px; font-size:12px; }
 .live-srv .bar { height:4px; }
+.live-srv .ls-head { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
 .live-srv .ls-name { font-weight:600; color:var(--fg); }
 .live-srv .ls-cnt { color:var(--muted); }
-.live-srv .ls-stat { color:var(--muted); text-align:right; }
+.live-srv .ls-stat { color:var(--muted); }
+.live-srv .ls-resolved { color:var(--muted); font-size:11px; white-space:pre-wrap; word-break:break-word; max-height:56px; overflow:auto; }
+.live-srv .ls-resolved:empty { display:none; }
 .live-srv.stopped { opacity:.7; }
 .live-srv.errored .ls-name { color:#f77; }
+/* 프레임: 라이브 프리뷰(전폭, 첫 프레임 도착 시 표시) + ① base / ② hires */
+.live-srv .ls-frames { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.live-srv .ls-fwrap.ls-prev { grid-column:1 / -1; }
+.live-srv .ls-cap { font-size:10px; color:var(--muted); margin-bottom:3px; }
+.live-srv .ls-fwrap .frame { background:#0c0d10; border-radius:6px; min-height:90px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.live-srv .ls-fwrap .frame img { max-width:100%; max-height:240px; display:block; cursor:zoom-in; }
+.live-srv .ls-fwrap .empty { color:#444b58; font-size:12px; }
 .live-cfg-head { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
 .lb-meta.hidden { display:none; }
-
-/* ---- floating preview (bottom-right, live tab) ---- */
-.float-preview { position:fixed; right:14px; bottom:14px; width:248px; z-index:50; background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:0 10px 34px rgba(0,0,0,.55); overflow:hidden; }
-.float-preview.hidden { display:none; }
-.fp-head { display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:var(--panel2); font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
-.fp-toggle { background:transparent; border:none; color:var(--muted); cursor:pointer; padding:0 4px; font-size:12px; line-height:1; }
-.fp-toggle:hover { color:var(--fg); }
-.fp-body { padding:8px; display:flex; flex-direction:column; gap:8px; max-height:74vh; overflow:auto; }
-.float-preview.collapsed .fp-body { display:none; }
-.fp-card .fp-cap { font-size:10px; color:var(--muted); margin-bottom:3px; display:flex; justify-content:space-between; gap:6px; }
-.fp-card .frame { background:#0c0d10; border-radius:6px; min-height:84px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
-.fp-card .frame img { max-width:100%; max-height:210px; display:block; cursor:zoom-in; }
-.fp-card .empty { color:#444b58; font-size:12px; }
 
 /* mobile */
 @media (max-width:760px) {
@@ -152,6 +149,4 @@ body.lb-open { overflow:hidden; }  /* no background scroll behind the overlay */
   .lb-meta-toggle { display:block; flex:none; width:92vw; background:var(--panel2); border:1px solid var(--line); border-radius:8px; color:var(--muted); font-size:12px; padding:9px 12px; text-align:left; letter-spacing:.03em; }
   .lb-meta-toggle.hidden { display:none; }  /* image-only lightbox (no metadata) */
   .lb-meta.folded { display:none; }
-  .float-preview { width:150px; right:8px; bottom:8px; }
-  .fp-card .frame img { max-height:140px; }
 }
