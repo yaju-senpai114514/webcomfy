@@ -152,14 +152,14 @@ async def provision_missing(entry: ServerEntry, cfg: GenerationConfig, emit: Asy
 class ServerCreate(BaseModel):
     name: str
     base_url: str
-    token: str = ""
+    key_name: str = ""  # Ed25519 keypair under keys/; "" = unsigned
     enabled: bool = True
 
 
 class ServerUpdate(BaseModel):
     name: str | None = None
     base_url: str | None = None
-    token: str | None = None
+    key_name: str | None = None
     enabled: bool | None = None
 
 
@@ -174,7 +174,9 @@ def api_servers() -> dict[str, Any]:
 
 @app.post("/api/servers")
 def api_server_create(body: ServerCreate) -> dict[str, Any]:
-    entry = serverstore.create(body.name, body.base_url, token=body.token, enabled=body.enabled)
+    entry = serverstore.create(
+        body.name, body.base_url, key_name=body.key_name, enabled=body.enabled
+    )
     return entry.model_dump()
 
 
@@ -182,7 +184,11 @@ def api_server_create(body: ServerCreate) -> dict[str, Any]:
 def api_server_update(sid: str, body: ServerUpdate) -> dict[str, Any]:
     try:
         entry = serverstore.update(
-            sid, name=body.name, base_url=body.base_url, token=body.token, enabled=body.enabled
+            sid,
+            name=body.name,
+            base_url=body.base_url,
+            key_name=body.key_name,
+            enabled=body.enabled,
         )
     except KeyError:
         raise HTTPException(status_code=404, detail="server not found")
@@ -336,7 +342,7 @@ async def api_reproduce(file: Annotated[UploadFile, File()]) -> dict[str, Any]:
 
 # --------------------------------------------------------------------------
 # Model management proxy — the browser talks to webcomfy, webcomfy talks to
-# each ComfyUI's /webcomfy/models API (auth token + CORS stay server-side).
+# each ComfyUI's /webcomfy/models API (request signing + CORS stay server-side).
 # The reserved id "local" targets webcomfy's own model repository (localstore),
 # so the same endpoints/UI manage local files and local↔remote sync.
 # --------------------------------------------------------------------------

@@ -1,17 +1,19 @@
 """Registry of remote ComfyUI servers webcomfy orchestrates.
 
 One `servers.json` file at the repo root holds an ordered list of entries
-(id, name, base_url, optional models-API token, enabled flag). On first run the
-registry is seeded from the legacy COMFY_BASE_URL / WEBCOMFY_MODELS_TOKEN env
-vars so a single-server setup keeps working unchanged.
+(id, name, base_url, optional signing-key name, enabled flag). On first run the
+registry is seeded from the COMFY_BASE_URL / WEBCOMFY_KEY_NAME env vars so a
+single-server setup keeps working unchanged. `key_name` names an Ed25519
+keypair under `keys/` (see scripts/gen_keypair.py) used to sign model-API
+requests; the retired per-server bearer `token` field is dropped on load.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import uuid
-from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
@@ -26,7 +28,7 @@ class ServerEntry(BaseModel):
     id: str
     name: str
     base_url: str  # e.g. http://host:8188 (no trailing slash)
-    token: str = ""  # WEBCOMFY_MODELS_TOKEN of that ComfyUI; "" = no auth
+    key_name: str = ""  # Ed25519 keypair name under keys/; "" = unsigned requests
     enabled: bool = True
 
 
@@ -39,7 +41,13 @@ class _Store(BaseModel):
 
 def _load() -> _Store:
     try:
-        return _Store.model_validate_json(SERVERS_FILE.read_text())
+        raw = json.loads(SERVERS_FILE.read_text())
+        # Legacy files carried a bearer `token` per server; the scheme is
+        # retired, so drop the field instead of failing extra="forbid".
+        for s in raw.get("servers", []):
+            if isinstance(s, dict):
+                s.pop("token", None)
+        return _Store.model_validate(raw)
     except (OSError, ValueError):
         return _Store()
 
@@ -73,12 +81,12 @@ def get(sid: str) -> ServerEntry:
     raise KeyError(sid)
 
 
-def create(name: str, base_url: str, token: str = "", enabled: bool = True) -> ServerEntry:
+def create(name: str, base_url: str, key_name: str = "", enabled: bool = True) -> ServerEntry:
     entry = ServerEntry(
         id=uuid.uuid4().hex[:8],
         name=name.strip() or base_url,
         base_url=base_url.rstrip("/"),
-        token=token,
+        key_name=key_name.strip(),
         enabled=enabled,
     )
     store = _load()
@@ -91,7 +99,7 @@ def update(
     sid: str,
     name: str | None = None,
     base_url: str | None = None,
-    token: str | None = None,
+    key_name: str | None = None,
     enabled: bool | None = None,
 ) -> ServerEntry:
     store = _load()
@@ -101,8 +109,8 @@ def update(
                 s.name = name.strip() or s.name
             if base_url is not None:
                 s.base_url = base_url.rstrip("/")
-            if token is not None:
-                s.token = token
+            if key_name is not None:
+                s.key_name = key_name.strip()
             if enabled is not None:
                 s.enabled = enabled
             store.servers[i] = s
@@ -131,5 +139,5 @@ def ensure_seeded() -> None:
     if SERVERS_FILE.exists():
         return
     base_url = os.environ.get("COMFY_BASE_URL", "http://localhost:8188")
-    token = os.environ.get("WEBCOMFY_MODELS_TOKEN", "")
-    create("default", base_url, token=token, enabled=True)
+    key_name = os.environ.get("WEBCOMFY_KEY_NAME", "")
+    create("default", base_url, key_name=key_name, enabled=True)

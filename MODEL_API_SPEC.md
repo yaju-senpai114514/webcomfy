@@ -35,9 +35,26 @@ sha256)를 관리한다.
 2. **확장자 화이트리스트**: `.safetensors`, `.sft`, `.ckpt`, `.pt`, `.pth`,
    `.bin`, `.gguf`, `.onnx`, `.yaml`(설정 동반 파일). 그 외 업로드는
    `400 invalid_extension`. 숨김 파일(`.`으로 시작하는 세그먼트) 거부.
-3. **인증(선택적 활성화)**: 환경변수 `WEBCOMFY_MODELS_TOKEN`이 설정되어 있으면
-   모든 엔드포인트에서 `Authorization: Bearer <token>` 검사, 불일치 시 `401`.
-   미설정이면 인증 없음(신뢰 네트워크 전제) — 이 동작을 README에 명시할 것.
+3. **인증(선택적 활성화, Ed25519 요청 서명)**: 확장 루트(`__init__.py` 옆)에
+   `<name>.pub`(Ed25519 공개키, PEM 또는 OpenSSH 형식) 파일이 하나라도 있으면
+   모든 엔드포인트에서 요청 서명을 검증한다. 클라이언트는 아래 정규 문자열을
+   개인키로 서명해 base64로 보낸다:
+
+   ```
+   webcomfy-v1\n{METHOD}\n{PATH}\n{QUERY}\n{TIMESTAMP}\n{NONCE}
+   ```
+
+   - `PATH` = 퍼센트 디코딩된 요청 경로(`/webcomfy/models/...`), `QUERY` =
+     디코딩된 `k=v` 쌍을 정렬 후 `&`로 결합(쿼리 없으면 빈 문자열),
+     `TIMESTAMP` = unix 초(정수), `NONCE` = 요청마다 새로운 랜덤 문자열
+     (16바이트 hex 권장).
+   - 요청 헤더 4개: `X-Webcomfy-Key`(= `.pub` 파일명에서 확장자를 뺀 키 이름) ·
+     `X-Webcomfy-Timestamp` · `X-Webcomfy-Nonce` · `X-Webcomfy-Signature`.
+   - 헤더 누락, 미신뢰 키, 서명 불일치, 타임스탬프 창(±300초) 밖, 논스 재사용은
+     전부 `401 unauthorized`. 본문은 서명하지 않는다(수 GB 스트리밍) — 업로드
+     무결성은 서명에 포함되는 `sha256` 쿼리 파라미터로 보장.
+   - `.pub`가 하나도 없으면 인증 없음(신뢰 네트워크 전제) — 이 동작을 README에
+     명시할 것. 구 `WEBCOMFY_MODELS_TOKEN` Bearer 토큰 방식은 **폐기**되었다.
 
 ## 2. 메타데이터 인덱스
 

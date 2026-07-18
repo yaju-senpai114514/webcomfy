@@ -19,8 +19,12 @@ output/
 # Config files
 configs/*.json
 
-# Server registry (holds per-server model-API tokens)
+# Server registry
 servers.json
+
+# Ed25519 signing keypairs (scripts/gen_keypair.py) — private keys must never
+# be committed; keep the whole dir out
+keys/
 
 # Local model repository (LoRA/체크포인트 파일)
 local_models/

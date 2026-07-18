@@ -9,14 +9,32 @@ spec's `{code, message}` payload so FastAPI handlers can relay them verbatim.
 
 from __future__ import annotations
 
+import base64
+import secrets
+import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, AsyncGenerator, AsyncIterator
 
 import httpx
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
+from paths import ROOT_DIR
 from store.servers import ServerEntry
 
 CHUNK = 1 << 20
+
+# --- Ed25519 request signing (MODEL_API_SPEC.md section 1) -------------------
+# Servers with a `key_name` get every request signed with keys/<key_name>.key
+# (generate with scripts/gen_keypair.py); the matching .pub must sit in the
+# ComfyUI-Remote-Manager extension root. key_name == "" sends unsigned requests
+# (only accepted by extensions with no trusted keys deployed).
+
+KEYS_DIR = ROOT_DIR / "keys"
+SIG_VERSION = "webcomfy-v1"
+
+_key_cache: dict[Path, tuple[float, Ed25519PrivateKey]] = {}
 
 # Model files run to many GB: never time out mid-body, only on connect/first byte.
 _TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=120.0, pool=30.0)
@@ -36,13 +54,59 @@ class ModelAPIError(Exception):
         return {"error": {"code": self.code, "message": self.message}}
 
 
-def _headers(entry: ServerEntry) -> dict[str, str]:
-    return {"Authorization": f"Bearer {entry.token}"} if entry.token else {}
+def _private_key(key_name: str) -> Ed25519PrivateKey:
+    path = KEYS_DIR / f"{key_name}.key"
+    try:
+        st = path.stat()
+    except OSError:
+        raise ModelAPIError(
+            500, "signing_key_missing",
+            f"{path} not found — generate with scripts/gen_keypair.py",
+        )
+    cached = _key_cache.get(path)
+    if cached and cached[0] == st.st_mtime:
+        return cached[1]
+    key = load_pem_private_key(path.read_bytes(), password=None)
+    if not isinstance(key, Ed25519PrivateKey):
+        raise ModelAPIError(
+            500, "signing_key_invalid", f"{path} is not an Ed25519 private key"
+        )
+    _key_cache[path] = (st.st_mtime, key)
+    return key
+
+
+def _headers(
+    entry: ServerEntry,
+    method: str,
+    parts: tuple[str, ...] = (),
+    params: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Signature headers for one request; {} when the server has no key."""
+    if not entry.key_name:
+        return {}
+    key = _private_key(entry.key_name)
+    timestamp = str(int(time.time()))
+    nonce = secrets.token_hex(16)
+    query = "&".join(f"{k}={v}" for k, v in sorted((params or {}).items()))
+    message = "\n".join(
+        (SIG_VERSION, method.upper(), _path(*parts), query, timestamp, nonce)
+    )
+    signature = base64.b64encode(key.sign(message.encode())).decode()
+    return {
+        "X-Webcomfy-Key": entry.key_name,
+        "X-Webcomfy-Timestamp": timestamp,
+        "X-Webcomfy-Nonce": nonce,
+        "X-Webcomfy-Signature": signature,
+    }
+
+
+def _path(*parts: str) -> str:
+    path = "/".join(p.strip("/") for p in parts if p)
+    return "/webcomfy/models" + (f"/{path}" if path else "")
 
 
 def _url(entry: ServerEntry, *parts: str) -> str:
-    path = "/".join(p.strip("/") for p in parts if p)
-    return f"{entry.base_url}/webcomfy/models" + (f"/{path}" if path else "")
+    return entry.base_url + _path(*parts)
 
 
 def _raise_for(resp: httpx.Response, body: bytes | None = None) -> None:
@@ -65,7 +129,7 @@ def _wrap_transport_error(entry: ServerEntry, exc: httpx.HTTPError) -> ModelAPIE
 async def summary(entry: ServerEntry) -> dict[str, Any]:
     """GET /webcomfy/models — category summary."""
     try:
-        resp = await _client.get(_url(entry), headers=_headers(entry))
+        resp = await _client.get(_url(entry), headers=_headers(entry, "GET"))
     except httpx.HTTPError as exc:
         raise _wrap_transport_error(entry, exc) from exc
     _raise_for(resp)
@@ -74,7 +138,9 @@ async def summary(entry: ServerEntry) -> dict[str, Any]:
 async def list_files(entry: ServerEntry, category: str) -> dict[str, Any]:
     """GET /webcomfy/models/{category} — full recursive file list."""
     try:
-        resp = await _client.get(_url(entry, category), headers=_headers(entry))
+        resp = await _client.get(
+            _url(entry, category), headers=_headers(entry, "GET", (category,))
+        )
     except httpx.HTTPError as exc:
         raise _wrap_transport_error(entry, exc) from exc
     _raise_for(resp)
@@ -83,9 +149,12 @@ async def list_files(entry: ServerEntry, category: str) -> dict[str, Any]:
 
 async def file_meta(entry: ServerEntry, category: str, name: str) -> dict[str, Any]:
     """GET /webcomfy/models/{category}/{name}?meta=1 — one file's metadata."""
+    params = {"meta": "1"}
     try:
         resp = await _client.get(
-            _url(entry, category, name), params={"meta": "1"}, headers=_headers(entry)
+            _url(entry, category, name),
+            params=params,
+            headers=_headers(entry, "GET", (category, name), params),
         )
     except httpx.HTTPError as exc:
         raise _wrap_transport_error(entry, exc) from exc
@@ -102,7 +171,7 @@ async def download(
     Yields the open httpx response (status/headers + aiter_bytes). Forwards an
     optional HTTP Range header so browser-resumed downloads pass through.
     """
-    headers = _headers(entry)
+    headers = _headers(entry, "GET", (category, name))
     if range_header:
         headers["Range"] = range_header
     try:
@@ -137,7 +206,10 @@ async def upload(
         resp = await _client.post(
             _url(entry, category, name),
             params=params,
-            headers={**_headers(entry), "Content-Type": "application/octet-stream"},
+            headers={
+                **_headers(entry, "POST", (category, name), params),
+                "Content-Type": "application/octet-stream",
+            },
             content=content,
         )
     except httpx.HTTPError as exc:
@@ -149,7 +221,9 @@ async def upload(
 async def delete(entry: ServerEntry, category: str, name: str) -> None:
     """DELETE /webcomfy/models/{category}/{name}."""
     try:
-        resp = await _client.delete(_url(entry, category, name), headers=_headers(entry))
+        resp = await _client.delete(
+            _url(entry, category, name), headers=_headers(entry, "DELETE", (category, name))
+        )
     except httpx.HTTPError as exc:
         raise _wrap_transport_error(entry, exc) from exc
     _raise_for(resp)
@@ -165,7 +239,9 @@ async def trigger_hash(
     params = {"force": "1"} if force else {}
     try:
         resp = await _client.post(
-            _url(entry, category, name) + "/hash", params=params, headers=_headers(entry)
+            _url(entry, category, name, "hash"),
+            params=params,
+            headers=_headers(entry, "POST", (category, name, "hash"), params),
         )
     except httpx.HTTPError as exc:
         raise _wrap_transport_error(entry, exc) from exc

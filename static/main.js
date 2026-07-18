@@ -2,7 +2,7 @@ const $ = (id) => document.getElementById(id);
 let OPTIONS = {};
 let CONFIGS = [];      // config metadata list [{id,name,created,modified}]
 let SELECTED = null;   // {id, name} of the active config
-let SERVERS = [];      // ComfyUI server registry [{id,name,base_url,token,enabled}]
+let SERVERS = [];      // ComfyUI server registry [{id,name,base_url,key_name,enabled}]
 let GEN_SERVER = null; // server id targeted by interactive 생성
 let LOCAL = {};        // 로컬 저장소 모델 목록 (서버에 없으면 생성 시 자동 전송됨)
 
@@ -682,8 +682,8 @@ async function checkHealth(id) {
 async function srvAdd() {
   const name = prompt("서버 이름", "gpu-" + (SERVERS.length + 1)); if (!name) return;
   const base_url = prompt("ComfyUI 주소 (http://host:port)", "http://"); if (!base_url) return;
-  const token = prompt("모델 관리 API 토큰 (WEBCOMFY_MODELS_TOKEN, 없으면 빈칸)", "") ?? "";
-  const r = await fetch("/api/servers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, base_url, token }) });
+  const key_name = prompt("서명 키 이름 (keys/<name>.key, 빈칸=무인증)", "") ?? "";
+  const r = await fetch("/api/servers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, base_url, key_name }) });
   if (!r.ok) { setStatus("서버 추가 실패", true); return; }
   await loadServers();
   setStatus(`서버 '${name}' 추가됨`, false);
@@ -692,8 +692,8 @@ async function srvAdd() {
 async function srvEdit(s) {
   const name = prompt("서버 이름", s.name); if (name === null) return;
   const base_url = prompt("ComfyUI 주소", s.base_url); if (base_url === null) return;
-  const token = prompt("모델 관리 API 토큰 (빈칸=없음)", s.token || ""); if (token === null) return;
-  const r = await fetch("/api/servers/" + s.id, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, base_url, token }) });
+  const key_name = prompt("서명 키 이름 (keys/<name>.key, 빈칸=무인증)", s.key_name || ""); if (key_name === null) return;
+  const r = await fetch("/api/servers/" + s.id, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, base_url, key_name }) });
   if (!r.ok) { setStatus("서버 수정 실패", true); return; }
   await loadServers();
   reloadOptions();
