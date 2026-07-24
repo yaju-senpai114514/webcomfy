@@ -198,7 +198,7 @@ src/
     embed.py       #   webp RIFF 청크에 gz(config+seed) 임베드/추출
   web/             # HTTP 계층 (FastAPI 앱)
     server.py      #   UI 서빙 + /api/* + /ws/* + 모델 프록시 + AFK 오케스트레이터
-    viewer.py      #   read-only 갤러리/구성 뷰어 (PORT+1)
+    viewer.py      #   read-only 갤러리/구성 뷰어 (PORT+1, 단계별 폴더 탐색)
 configs/           # 저장된 구성들 (<id>.json + _state.json) — 런타임 생성
 servers.json       # 서버 레지스트리 (토큰 포함 — gitignore) — 런타임 생성
 local_models/      # 로컬 모델 저장소 (카테고리별 서브폴더 — gitignore) — 런타임 생성

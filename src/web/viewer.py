@@ -6,7 +6,7 @@ app is busy generating or the ComfyUI backend is offline.
 
 Endpoints:
   GET /api/configs            all stored configs (full) + selected id
-  GET /api/folders            output directories holding images (rel path, count, mtime)
+  GET /api/folders?dir=       one directory level (children, current path, parent)
   GET /api/images?dir=        images in one directory (newest first)
   GET /api/meta?path=         metadata embedded in one webp (config/seed/resolved), or null
   GET /img/<path>             the image bytes (static mount, sandboxed to OUTPUT_DIR)
@@ -64,23 +64,54 @@ def _images_in(d: Path) -> list[Path]:
 
 
 @app.get("/api/folders")
-def api_folders() -> dict[str, Any]:
-    """Each directory under OUTPUT_DIR that contains images, newest first."""
+def api_folders(dir: str = Query("")) -> dict[str, Any]:
+    """Immediate child directories of `dir`; never recursively scan the tree."""
+    current = _safe(dir)
+    if not current.is_dir():
+        raise HTTPException(status_code=404, detail="no such folder")
+
     folders: list[dict[str, Any]] = []
-    if OUTPUT_DIR.exists():
-        dirs = {p.parent for p in OUTPUT_DIR.rglob("*")
-                if p.is_file() and p.suffix.lower() in IMG_EXTS}
-        for d in dirs:
-            imgs = _images_in(d)
-            if not imgs:
+    try:
+        children = list(current.iterdir())
+    except OSError as exc:
+        raise HTTPException(status_code=404, detail="folder is not readable") from exc
+
+    for child in children:
+        try:
+            resolved = child.resolve()
+            if not child.is_dir() or not resolved.is_relative_to(OUTPUT_DIR):
                 continue
+            entries = list(child.iterdir())
+            imgs = [
+                p for p in entries
+                if p.is_file() and p.suffix.lower() in IMG_EXTS
+            ]
             folders.append({
-                "dir": d.relative_to(OUTPUT_DIR).as_posix(),
+                "dir": child.relative_to(OUTPUT_DIR).as_posix(),
+                "name": child.name,
                 "count": len(imgs),
-                "mtime": max(p.stat().st_mtime for p in imgs),
+                "has_children": any(
+                    p.is_dir() and p.resolve().is_relative_to(OUTPUT_DIR)
+                    for p in entries
+                ),
+                "mtime": child.stat().st_mtime,
             })
-        folders.sort(key=lambda f: f["mtime"], reverse=True)
-    return {"folders": folders, "root": str(OUTPUT_DIR)}
+        except OSError:
+            continue
+
+    folders.sort(key=lambda f: str(f["name"]).casefold())
+    rel = current.relative_to(OUTPUT_DIR).as_posix()
+    if rel == ".":
+        rel = ""
+    parent = None if not rel else current.parent.relative_to(OUTPUT_DIR).as_posix()
+    if parent == ".":
+        parent = ""
+    return {
+        "folders": folders,
+        "root": str(OUTPUT_DIR),
+        "current": rel,
+        "parent": parent,
+    }
 
 
 @app.get("/api/images")

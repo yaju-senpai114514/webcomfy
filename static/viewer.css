@@ -25,6 +25,8 @@ header .vtag {
 .side-head { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; cursor:pointer; user-select:none; }
 .side-head:hover { color:var(--fg); }
 .side-label { flex:1 1 auto; min-width:0; }
+.folder-sort { width:auto; flex:none; padding:2px 5px; border:1px solid var(--line); background:var(--panel2); color:var(--muted); font-size:9px; line-height:1.2; }
+.folder-sort:hover { color:var(--fg); border-color:var(--accent); }
 .side-toggle { flex:none; background:transparent; border:none; color:inherit; cursor:pointer; padding:0 2px; font-size:11px; line-height:1; }
 .side-toggle::before { content:"◂"; }
 
@@ -34,6 +36,8 @@ header .vtag {
   .viewer-main.side-folded .side { padding:8px 4px; }
   .viewer-main.side-folded .side-head { margin-bottom:0; justify-content:center; }
   .viewer-main.side-folded .side-label,
+  .viewer-main.side-folded .folder-sort,
+  .viewer-main.side-folded .folder-breadcrumb,
   .viewer-main.side-folded .folder-list,
   .viewer-main.side-folded .cfg-list2 { display:none; }
   .viewer-main.side-folded .side-toggle::before { content:"▸"; }
@@ -43,10 +47,17 @@ header .vtag {
 
 /* folder list */
 .folder-list, .cfg-list2 { display:flex; flex-direction:column; gap:4px; }
+.folder-breadcrumb { display:flex; align-items:center; gap:3px; overflow-x:auto; margin:-2px 0 8px; padding-bottom:3px; }
+.folder-crumb { width:auto; flex:none; border:none; background:transparent; color:var(--muted); padding:2px 3px; font-size:10px; cursor:pointer; }
+.folder-crumb:hover { color:var(--accent); }
+.folder-sep { color:var(--muted); font-size:10px; }
 .folder, .cfg-item { border:1px solid var(--line); border-radius:6px; padding:6px 9px; cursor:pointer; background:var(--panel2); }
 .folder:hover, .cfg-item:hover { border-color:var(--accent); }
 .folder.selected, .cfg-item.selected { border-color:var(--accent); background:rgba(108,140,255,0.14); }
 .folder-name, .cfg-name { font-size:12px; color:var(--fg); word-break:break-all; }
+.folder-name { display:flex; align-items:center; justify-content:space-between; gap:6px; }
+.folder-enter { color:var(--muted); flex:none; }
+.folder-up { border-style:dashed; }
 .folder-sub, .cfg-dates { font-size:10px; color:var(--muted); margin-top:2px; }
 
 /* thumbnail grid */
@@ -139,6 +150,8 @@ body.lb-open { overflow:hidden; }  /* no background scroll behind the overlay */
   .side { position:static; max-height:none; }
   .side-toggle::before { content:"▾"; }
   .viewer-main.side-folded .side-head { margin-bottom:0; }
+  .viewer-main.side-folded .folder-sort,
+  .viewer-main.side-folded .folder-breadcrumb,
   .viewer-main.side-folded .folder-list,
   .viewer-main.side-folded .cfg-list2 { display:none; }
   .viewer-main.side-folded .side-toggle::before { content:"▸"; }

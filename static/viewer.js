@@ -121,35 +121,81 @@ function showTab(name) {
 // ---------- gallery ----------
 let currentDir = null;
 let galleryImages = [];   // images of the folder currently shown (lightbox nav source)
-async function loadFolders() {
-  const data = await getJSON("/api/folders");
+let folderSortAsc = true;
+try { folderSortAsc = localStorage.getItem("viewer.folderSort") !== "desc"; } catch {}
+
+function syncFolderSortButton() {
+  $("folderSort").textContent = folderSortAsc ? "ASC" : "DESC";
+  $("folderSort").title = `폴더명 ${folderSortAsc ? "오름차순" : "내림차순"} · 클릭해서 전환`;
+}
+
+function renderBreadcrumb(dir) {
+  const nav = $("folderBreadcrumb");
+  nav.textContent = "";
+  const parts = dir ? dir.split("/") : [];
+  const addCrumb = (label, path) => {
+    const b = el("button", "folder-crumb", label);
+    b.type = "button";
+    b.addEventListener("click", () => loadFolders(path));
+    nav.append(b);
+  };
+  addCrumb("output", "");
+  let path = "";
+  for (const part of parts) {
+    nav.append(el("span", "folder-sep", "›"));
+    path = path ? `${path}/${part}` : part;
+    addCrumb(part, path);
+  }
+}
+
+async function loadFolders(dir = currentDir || "") {
+  const data = await getJSON("/api/folders?dir=" + encodeURIComponent(dir));
+  currentDir = data.current;
   $("folderRoot").textContent = data.root ? "· " + data.root.split("/").slice(-1)[0] : "";
+  renderBreadcrumb(data.current);
   const list = $("folderList");
   list.textContent = "";
-  if (!data.folders.length) {
-    list.append(el("div", "muted pad", "이미지가 없습니다."));
-    $("thumbs").textContent = "";
-    $("galleryHead").textContent = "";
-    return;
+
+  if (data.parent !== null) {
+    const up = el("div", "folder folder-up");
+    up.append(el("div", "folder-name", "↰ 상위 폴더"));
+    up.dataset.dir = data.parent;
+    up.addEventListener("click", () => loadFolders(data.parent));
+    list.append(up);
   }
-  for (const f of data.folders) {
+
+  const folders = [...data.folders].sort((a, b) => {
+    const cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+    return folderSortAsc ? cmp : -cmp;
+  });
+  for (const f of folders) {
     const row = el("div", "folder");
-    row.append(el("div", "folder-name", f.dir || "(루트)"));
-    row.append(el("div", "folder-sub", `${f.count}장 · ${fmtTime(f.mtime)}`));
+    const name = el("div", "folder-name", f.name);
+    name.append(el("span", "folder-enter", "›"));
+    row.append(name);
+    const detail = f.count ? `${f.count}장` : "이미지 없음";
+    row.append(el("div", "folder-sub", `${detail}${f.has_children ? " · 하위 폴더 있음" : ""}`));
     row.dataset.dir = f.dir;
-    row.addEventListener("click", () => selectFolder(f.dir, row));
+    row.addEventListener("click", () => loadFolders(f.dir));
     list.append(row);
   }
-  selectFolder(data.folders[0].dir, list.firstChild);
+
+  if (!data.folders.length) {
+    list.append(el("div", "muted pad", "하위 폴더가 없습니다."));
+  }
+  await selectFolder(data.current);
 }
-async function selectFolder(dir, row) {
+async function selectFolder(dir) {
   currentDir = dir;
-  document.querySelectorAll("#folderList .folder").forEach((r) => r.classList.toggle("selected", r === row));
   const data = await getJSON("/api/images?dir=" + encodeURIComponent(dir));
   galleryImages = data.images;
   $("galleryHead").textContent = `${dir || "(루트)"} — ${data.images.length}장`;
   const grid = $("thumbs");
   grid.textContent = "";
+  if (!data.images.length) {
+    grid.append(el("div", "muted pad", "이 폴더에는 이미지가 없습니다."));
+    return;
+  }
   for (const im of data.images) {
     const card = el("div", "thumb");
     const img = el("img");
@@ -458,6 +504,14 @@ function init() {
   $("tabGallery").addEventListener("click", () => showTab("gallery"));
   $("tabConfigs").addEventListener("click", () => showTab("configs"));
   $("tabLive").addEventListener("click", () => showTab("live"));
+  syncFolderSortButton();
+  $("folderSort").addEventListener("click", (e) => {
+    e.stopPropagation();  // side-head click would otherwise fold the sidebar
+    folderSortAsc = !folderSortAsc;
+    try { localStorage.setItem("viewer.folderSort", folderSortAsc ? "asc" : "desc"); } catch {}
+    syncFolderSortButton();
+    loadFolders();
+  });
   $("refreshBtn").addEventListener("click", () => {
     if (!$("viewGallery").classList.contains("hidden")) loadFolders();
     else if (!$("viewConfigs").classList.contains("hidden")) loadConfigs();
