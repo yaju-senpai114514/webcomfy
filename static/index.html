@@ -279,7 +279,7 @@
     toggle.textContent = collapsed ? "▸" : "▾";
   });
   var lb = document.getElementById("lightbox");
-  fp.addEventListener("click", function (e) {
+  function zoomFrame(e) {
     var t = e.target;
     if (t.tagName !== "IMG" || !t.closest(".frame")) return;
     lb.innerHTML = "";
@@ -287,7 +287,10 @@
     big.src = t.src;
     lb.appendChild(big);
     lb.classList.remove("hidden");
-  });
+  }
+  fp.addEventListener("click", zoomFrame);
+  // AFK 서버별 카드의 프레임(라이브 프리뷰/base/hires)도 클릭으로 확대
+  document.getElementById("afkCards").addEventListener("click", zoomFrame);
   lb.addEventListener("click", function () { lb.classList.add("hidden"); });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") lb.classList.add("hidden");

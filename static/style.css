@@ -223,7 +223,7 @@ header .srv-sel { width:auto; max-width:180px; padding:4px 6px; font-size:12px; 
 .afk-card .ac-prev { grid-column:1 / -1; }  /* 라이브 샘플링 프리뷰 — 전폭 */
 .afk-card .ac-cap { font-size:10px; color:var(--muted); margin-bottom:3px; }
 .afk-card .frame { background:#0c0d10; border-radius:6px; min-height:120px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
-.afk-card .frame img { max-width:100%; max-height:40vh; display:block; }
+.afk-card .frame img { max-width:100%; max-height:40vh; display:block; cursor:zoom-in; }
 .afk-card .empty { color:#444b58; font-size:12px; }
 
 /* ===================== mobile ===================== */
