@@ -20,6 +20,7 @@ PromptSpec
 WildcardBlock                 # 하나의 치환 단계 (재귀 트리)
 ├─ input: str                 # 트리거 토큰들(콤마 구분). 빈 문자열 = "컨테이너"
 ├─ items: list[WildcardItem]  # 후보 목록
+├─ sample_count: int = 1      # 가중 비복원 추출 개수(1은 기존 단일 선택)
 └─ children: list[WildcardBlock]   # 이 블록 뒤에 적용되는 하위 블록(재귀)
 
 WildcardItem                  # 후보 하나
@@ -68,25 +69,28 @@ if not triggers:            # 컨테이너(빈 input): 치환 없음, 그대로 
 first = 첫 번째로 triggers 에 속하는 토큰의 인덱스
 if first is None:           # 트리거 토큰이 프롬프트에 없음 → no-op
     return tokens
-chosen = choose(block.items, rng)
-if chosen is None:          # 선택 가능한 후보 없음(전부 비활성/weight 0) → no-op
+chosen = choose_many(block.items, block.sample_count, rng)
+if not chosen:             # 선택 가능한 후보 없음(전부 비활성/weight 0) → no-op
     return tokens
 kept = [t for t in tokens if t not in triggers]      # 모든 트리거 토큰 제거(consume)
 insert_at = first 위치를 kept 기준으로 환산한 인덱스
-replacement = [] if chosen.text == "NOPROMPT" else tokenize(chosen.text)
+replacement = 선택된 후보들을 추출 순서대로 tokenize해 연결(NOPROMPT는 생략)
 kept[insert_at:insert_at] = replacement              # 첫 트리거 자리에 삽입
 return kept
 ```
 
 요점:
 - 트리거 토큰은 **모두 제거**되고, 선택된 후보 텍스트가 **첫 등장 위치**에 삽입된다.
-- `NOPROMPT`는 트리거만 consume하고 아무것도 넣지 않는다.
+- `sample_count > 1`이면 가중 비복원 추출하므로 한 후보가 중복 선택되지 않는다. 선택 가능 후보 수보다 크면
+  가능한 후보를 모두 선택한다.
+- 선택된 `NOPROMPT`는 추출 개수 한 자리를 차지하지만 아무것도 넣지 않는다.
 - 후보 텍스트는 `__sub_token__`을 포함할 수 있고, 그건 이후(자식 또는 뒤 블록)에 다시 치환될 수 있다.
 
 ### 2.4 후보 선택 — `choose(items, rng)`
 
-`enabled and weight > 0` 인 후보만 후보풀에 넣고, weight 비례 가중 랜덤으로 하나 고른다. 후보풀이
-비면 `None`.
+`enabled and weight > 0` 인 후보만 후보풀에 넣고 weight 비례로 고른다. 복수 추출 시 선택한 후보를
+풀에서 제거하고 반복한다. `sample_count=1`은 기존 `_choose`를 정확히 한 번 호출하므로, 이 필드가
+없던 과거 config/임베디드 메타데이터도 같은 master seed에서 RNG 소비와 결과가 그대로 유지된다.
 
 ### 2.5 Resolver의 스코프 = **전역·순차(loose)**
 

@@ -10,9 +10,10 @@ substitution blocks*. Each block has
 Resolution (re-randomised every call, which is what AFK mode loops over):
 
   1. Tokenise the running prompt (comma-separated, trimmed).
-  2. For each block, pick one enabled candidate at random (weighted). Remove
-     every token equal to one of the block's `input` tokens; insert the chosen
-     text where the *first* such token appeared. Then recursively apply the
+  2. For each block, pick enabled candidates at random (weighted, without
+     replacement when `sample_count > 1`). Remove every token equal to one of
+     the block's `input` tokens; insert the chosen text(s) where the *first*
+     such token appeared. Then recursively apply the
      block's `children` to the running prompt (they typically resolve the
      `__token__`s the chosen candidate introduced).
 
@@ -49,6 +50,29 @@ def _choose(items: list[WildcardItem], rng: random.Random) -> WildcardItem | Non
     return pool[-1]  # float rounding fallback
 
 
+def _choose_many(
+    items: list[WildcardItem], count: int, rng: random.Random
+) -> list[WildcardItem]:
+    """Weighted draws without replacement.
+
+    Count 1 deliberately invokes the legacy picker exactly once, preserving
+    old configs' resolved prompts and subsequent sampler seeds.
+    """
+    if count == 1:
+        chosen = _choose(items, rng)
+        return [] if chosen is None else [chosen]
+
+    remaining = [it for it in items if it.enabled and it.weight > 0]
+    chosen_items: list[WildcardItem] = []
+    for _ in range(min(count, len(remaining))):
+        chosen = _choose(remaining, rng)
+        if chosen is None:
+            break
+        chosen_items.append(chosen)
+        remaining.remove(chosen)
+    return chosen_items
+
+
 def _substitute(tokens: list[str], block: WildcardBlock, rng: random.Random) -> list[str]:
     """This block's own substitution: consume input tokens, splice in a chosen item."""
     triggers = set(_tokenize(block.input))
@@ -59,14 +83,19 @@ def _substitute(tokens: list[str], block: WildcardBlock, rng: random.Random) -> 
     if first is None:
         return tokens  # nothing to substitute — block is a no-op for this prompt
 
-    chosen = _choose(block.items, rng)
-    if chosen is None:
+    chosen = _choose_many(block.items, block.sample_count, rng)
+    if not chosen:
         return tokens
 
     kept = [tok for tok in tokens if tok not in triggers]
     insert_at = sum(1 for tok in tokens[:first] if tok not in triggers)
-    # NOPROMPT consumes the trigger but inserts nothing.
-    replacement = [] if chosen.text.strip() == NOPROMPT else _tokenize(chosen.text)
+    # A selected NOPROMPT occupies one sample slot but inserts nothing.
+    replacement = [
+        tok
+        for item in chosen
+        if item.text.strip() != NOPROMPT
+        for tok in _tokenize(item.text)
+    ]
     kept[insert_at:insert_at] = replacement
     return kept
 

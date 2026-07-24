@@ -89,6 +89,8 @@ class WildcardBlock(_Strict):
     input: str = ""
     items: list[WildcardItem] = Field(default_factory=list)
     children: list["WildcardBlock"] = Field(default_factory=list)
+    # 1 preserves the legacy single weighted draw (including exact RNG use).
+    sample_count: int = Field(default=1, ge=1, le=64)
 
     @model_validator(mode="before")
     @classmethod

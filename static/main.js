@@ -123,7 +123,7 @@ function refreshKidsBox(kidsBox) {
 let dragBlock = null;  // the .block element currently being dragged (for reparenting)
 
 // --- wildcard substitution blocks (recursive tree) -------------------------
-// A block = {input, items:[{enabled,weight,text}], children:[block]}. After the
+// A block = {input, items:[{enabled,weight,text}], sample_count:1, children:[block]}. After the
 // block substitutes its `input` token, its child blocks roll further wildcards
 // (recursively) — typically resolving __token__s a chosen candidate introduced.
 function blockRow(block) {
@@ -189,7 +189,29 @@ function blockRow(block) {
   addNop.type = "button"; addNop.className = "sm"; addNop.textContent = "+ NOPROMPT";
   addNop.addEventListener("click", () => addItem({ enabled: true, weight: 1, text: NOPROMPT }));
   tableActions.append(addCand, addNop);
-  table.append(thead, tbody, tableActions);
+
+  // Rarely-used per-block combinatorial sampling stays collapsed by default.
+  const sampling = document.createElement("details");
+  sampling.className = "wc-sampling";
+  const samplingSummary = document.createElement("summary");
+  const sampleCount = document.createElement("input");
+  sampleCount.type = "number"; sampleCount.min = "1"; sampleCount.max = "64";
+  sampleCount.value = block.sample_count ?? 1;
+  const syncSampling = () => {
+    const n = Math.max(1, Math.min(64, parseInt(sampleCount.value, 10) || 1));
+    samplingSummary.textContent = n > 1 ? `복수 추출 (고급) · ${n}개` : "복수 추출 (고급)";
+  };
+  sampleCount.addEventListener("input", syncSampling);
+  samplingSummary.title = "이 블록에서 후보를 가중 비복원 추출해 함께 삽입";
+  const samplingBody = document.createElement("label");
+  samplingBody.append("추출 개수 ", sampleCount);
+  const samplingHint = document.createElement("span");
+  samplingHint.textContent = "개 · 후보 수보다 크면 가능한 후보를 모두 선택";
+  samplingBody.append(samplingHint);
+  sampling.append(samplingSummary, samplingBody);
+  if ((block.sample_count ?? 1) > 1) sampling.open = true;
+  syncSampling();
+  table.append(thead, tbody, tableActions, sampling);
 
   // ----- text (raw) mode — bulk-edit the items as |n| text lines -----
   const list = document.createElement("textarea");
@@ -356,6 +378,7 @@ function blockRow(block) {
     input: input.value,
     items: mode === "table" ? tableItems() : parseWildcards(list.value),
     children: childBlocks().map((b) => b._get()),
+    sample_count: Math.max(1, Math.min(64, parseInt(sampleCount.value, 10) || 1)),
   });
   return wrap;
 }

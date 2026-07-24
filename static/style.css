@@ -97,6 +97,10 @@ textarea { resize:vertical; min-height:84px; font-size:13px; }
   white-space:pre-wrap; word-break:break-word;  /* long candidates wrap instead of scrolling */
 }
 .wc-row .c-x { margin-top:5px; }
+.wc-sampling { margin-top:5px; color:var(--muted); font-size:11px; }
+.wc-sampling summary { cursor:pointer; user-select:none; width:max-content; }
+.wc-sampling label { display:flex; align-items:center; gap:5px; margin:5px 0 0; }
+.wc-sampling input { width:58px; padding:3px 5px; }
 
 /* fold caret + drag handle in the block head */
 .block-head .bfold { background:transparent; border:none; color:var(--muted); cursor:pointer; padding:0 2px; font-size:10px; line-height:1; }

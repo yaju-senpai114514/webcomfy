@@ -674,7 +674,8 @@ async def ws_generate(ws: WebSocket) -> None:
                     try:
                         meta = embed.build_meta(cfg, master_seed, info)
                         path = await asyncio.to_thread(
-                            storage.save_image, final_png, cfg.save, info["seed1"], 0, meta
+                            storage.save_image, final_png, cfg.save, info["seed1"], 0,
+                            meta, info["lora_triggers"],
                         )
                         await ws.send_json({"type": "saved", "path": str(path)})
                     except Exception as exc:  # noqa: BLE001
@@ -858,7 +859,8 @@ class AfkManager:
 
                     meta = embed.build_meta(cfg, master_seed, info)
                     path = await asyncio.to_thread(
-                        storage.save_image, final_png, cfg.save, info["seed1"], index, meta
+                        storage.save_image, final_png, cfg.save, info["seed1"], index,
+                        meta, info["lora_triggers"],
                     )
                     self.last_image = await asyncio.to_thread(path.read_bytes)
                     worker.last_path = self.last_path = str(path)

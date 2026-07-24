@@ -42,6 +42,7 @@ class BuildInfo(TypedDict):
     seed2: int
     positive: str
     loras: list[str]
+    lora_triggers: list[str]
 
 
 def _seed(value: int, rng: random.Random) -> int:
@@ -216,5 +217,10 @@ def build_workflow(
         "seed2": seed2,
         "positive": positive,
         "loras": [lora.name for lora in loras],
+        "lora_triggers": [
+            lora.trigger.strip()
+            for lora in loras
+            if lora.mode == "conditional" and lora.trigger.strip()
+        ],
     }
     return g, dict(OUTPUT_LABELS), info

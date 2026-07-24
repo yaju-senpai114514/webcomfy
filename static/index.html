@@ -81,6 +81,7 @@
         각 블록: <b>input</b> 토큰(콤마 구분)이 프롬프트에 있으면 consume되고, 첫 등장 위치에
         <b>후보</b> 한 줄이 매 생성마다 가중 랜덤 삽입됨. 표에서 — 체크박스 = 활성/비활성(주석),
         <b>가중치</b> 열(0 이상 실수, 0이면 선택 안 됨), 후보 텍스트가 <code>NOPROMPT</code>면 consume만 하고 삽입 안 함.
+        블록별 <b>복수 추출 (고급)</b>을 펼치면 여러 후보를 가중 비복원 추출해 함께 삽입할 수 있으며, 기본 1개는 기존 동작과 동일.
         블록 아래 <b>+ 하위 블록</b>으로 이 블록이 치환된 뒤 이어서 굴려지는 <b>하위 블록(재귀 트리)</b>을 달 수 있음 —
         예: <code>__hair__</code> 블록의 후보 <code>twintails, __len__</code>가 뽑히면, 하위 <code>__len__</code> 블록이 길이를 다시 굴림.
         하위 블록도 다시 하위 블록을 가질 수 있음. <b>텍스트로</b> 토글하면 후보 목록을 <code>|n| 텍스트</code> 원문으로 일괄 편집.
@@ -118,7 +119,7 @@
         <div class="field"><label>webp 품질 (1–100)</label><input id="save_quality" type="number" min="1" max="100" /></div>
         <div class="field"><label class="inline lbl-chk"><input id="save_lossless" type="checkbox" /> 무손실(lossless)</label></div>
       </div>
-      <div class="hint">placeholder: <code>{date}</code> <code>{time}</code> <code>{datetime}</code> <code>{seed}</code> <code>{index}</code> <code>{cname}</code> <code>{ext}</code></div>
+      <div class="hint">placeholder: <code>{date}</code> <code>{time}</code> <code>{datetime}</code> <code>{seed}</code> <code>{index}</code> <code>{cname}</code> <code>{lora_triggers}</code> <code>{ext}</code> — <code>{lora_triggers}</code>는 실제 선택된 conditional LoRA 트리거를 <code>_</code>로 연결</div>
       <div class="field mt8"><label>AFK 분산 대상 백엔드 (체크된 서버들이 동시에 생성)</label>
         <div id="afkServers" class="afk-srvs"></div>
         <div class="afk-srv-tools">
